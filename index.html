@@ -212,14 +212,9 @@
       <span class="tab__tag">Attack orchestration</span>
     </button>
     <button class="tab" role="tab" aria-selected="false" id="tab-1" aria-controls="frame-1"
-            data-url="https://clarence1979.github.io/cybersim/DDoS_Flood_Simulator.html">
-      <span class="tab__name">DDoS Flood Simulator</span>
-      <span class="tab__tag">Volumetric flood</span>
-    </button>
-    <button class="tab" role="tab" aria-selected="false" id="tab-2" aria-controls="frame-2"
-            data-url="https://clarence1979.github.io/cybersim/MITM_Interceptor.html">
-      <span class="tab__name">MITM Interceptor</span>
-      <span class="tab__tag">Traffic interception</span>
+            data-url="https://clarence1979.github.io/cybersim/cyberrange.html">
+      <span class="tab__name">Cyber Range</span>
+      <span class="tab__tag">Practice environment</span>
     </button>
   </nav>
 
@@ -230,11 +225,7 @@
             allow="fullscreen; clipboard-write; downloads"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"></iframe>
     <iframe class="frame" id="frame-1" role="tabpanel" aria-labelledby="tab-1"
-            title="DDoS Flood Simulator"
-            allow="fullscreen; clipboard-write; downloads"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"></iframe>
-    <iframe class="frame" id="frame-2" role="tabpanel" aria-labelledby="tab-2"
-            title="MITM Interceptor"
+            title="Cyber Range"
             allow="fullscreen; clipboard-write; downloads"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"></iframe>
 
@@ -260,7 +251,7 @@
   var openExt= document.getElementById('open-ext');
   var fb     = document.getElementById('fallback');
   var fbLink = document.getElementById('fallback-link');
-  var loaded = [false,false,false];
+  var loaded = tabs.map(function(){ return false; });
 
   function shortUrl(u){ return u.replace(/^https?:\/\//,''); }
 
