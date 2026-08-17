@@ -47,7 +47,7 @@
     overflow:hidden;
     white-space:nowrap;
     position:relative;
-    height:26px;
+    height:15px;
     display:flex;
     align-items:center;
   }
@@ -55,14 +55,14 @@
     content:"LIVE";
     position:absolute;left:0;top:0;bottom:0;z-index:2;
     display:flex;align-items:center;
-    padding:0 10px;
-    font-size:10px;letter-spacing:.18em;font-weight:700;
+    padding:0 7px;
+    font-size:8.5px;letter-spacing:.16em;font-weight:700;
     color:var(--bg);background:var(--magenta);
   }
   .ticker__track{
     display:inline-block;
-    padding-left:56px;
-    font-size:11.5px;
+    padding-left:44px;
+    font-size:9.5px;
     color:var(--dim);
     letter-spacing:.02em;
     animation:scroll 42s linear infinite;
@@ -73,35 +73,35 @@
 
   /* ---- Masthead ---- */
   .mast{
-    display:flex;align-items:center;gap:16px;
-    padding:16px 22px 14px;
+    display:flex;align-items:center;gap:12px;
+    padding:4px 18px;
     border-bottom:1px solid var(--line);
     background:linear-gradient(180deg,var(--panel-2),var(--panel));
   }
-  .mast__mark{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .mast__mark{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
   .brand{
-    font-size:clamp(20px,3.6vw,30px);
+    font-size:clamp(13.5px,2.1vw,16px);
     font-weight:800;
     letter-spacing:.06em;
-    margin:0;
+    margin:0;line-height:1.25;
     color:var(--text);
-    text-shadow:0 0 22px rgba(52,211,238,.22);
+    text-shadow:0 0 18px rgba(52,211,238,.22);
   }
   .brand::before{
-    content:"▐ ";color:var(--cyan);text-shadow:0 0 14px var(--cyan);
+    content:"▐ ";color:var(--cyan);text-shadow:0 0 12px var(--cyan);
   }
   .brand em{color:var(--cyan);font-style:normal;}
   .tagline{
-    font-size:11px;letter-spacing:.24em;text-transform:uppercase;
+    font-size:9px;letter-spacing:.2em;text-transform:uppercase;
     color:var(--muted);
   }
   .status{
-    margin-left:auto;display:flex;align-items:center;gap:8px;
-    font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+    margin-left:auto;display:flex;align-items:center;gap:7px;
+    font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
     white-space:nowrap;
   }
   .dot{
-    width:8px;height:8px;border-radius:50%;background:var(--green);
+    width:7px;height:7px;border-radius:50%;background:var(--green);
     box-shadow:0 0 0 0 rgba(52,211,153,.5);
     animation:pulse 2.4s ease-out infinite;
   }
@@ -112,25 +112,57 @@
   }
 
   /* ---- Tabs ---- */
-  .tabs{
-    display:flex;gap:0;
-    padding:0 14px;
+  /* Tab strip stays visible when the header is collapsed, so the
+     collapse toggle lives here rather than in the masthead. */
+  .tabbar{
+    display:flex;align-items:stretch;
     background:var(--panel);
     border-bottom:1px solid var(--line);
-    overflow-x:auto;
   }
+  .tabs{
+    display:flex;gap:0;
+    padding:0 10px;
+    flex:1;min-width:0;
+    overflow-x:auto;
+    scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{height:0;}
   .tab{
     appearance:none;background:transparent;border:0;cursor:pointer;
     font-family:var(--mono);color:var(--muted);
-    padding:13px 18px 12px;
-    display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+    padding:6px 14px 5px;
+    display:flex;flex-direction:row;align-items:baseline;gap:9px;
     border-bottom:2px solid transparent;
     white-space:nowrap;
     transition:color .15s ease,border-color .15s ease,background .15s ease;
   }
   .tab:hover{color:var(--text);background:rgba(52,211,238,.04);}
-  .tab__name{font-size:14px;font-weight:700;letter-spacing:.02em;}
-  .tab__tag{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);}
+  .tab__name{font-size:12.5px;font-weight:700;letter-spacing:.02em;}
+  .tab__tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);}
+
+  /* ---- Collapse toggle ---- */
+  .chrome-toggle{
+    appearance:none;background:transparent;border:0;border-left:1px solid var(--line);
+    cursor:pointer;color:var(--muted);
+    font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    display:flex;align-items:center;gap:6px;
+    padding:0 12px;flex:0 0 auto;
+    transition:color .15s ease,background .15s ease;
+  }
+  .chrome-toggle:hover{color:var(--cyan);background:rgba(52,211,238,.05);}
+  .chrome-toggle:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px;}
+  .chrome-toggle__chevron{
+    font-size:9px;line-height:1;display:inline-block;
+    transition:transform .18s ease;
+  }
+  .chrome-toggle__label{display:inline;}
+  /* Collapsed: hide the ticker and masthead, keep the tab strip. */
+  body.is-collapsed .ticker,
+  body.is-collapsed .mast{display:none;}
+  body.is-collapsed .chrome-toggle__chevron{transform:rotate(180deg);}
+  @media (max-width:560px){
+    .chrome-toggle__label{display:none;}
+  }
   .tab[aria-selected="true"]{
     color:var(--text);
     border-bottom-color:var(--cyan);
@@ -180,23 +212,24 @@
   @media (max-width:560px){
     .mast{flex-wrap:wrap;}
     .status{margin-left:0;}
-    .tab{padding:11px 14px 10px;}
+    .tab{padding:6px 11px 5px;}
   }
   @media (prefers-reduced-motion:reduce){
-    .ticker__track{animation:none;padding-left:56px;}
+    .ticker__track{animation:none;padding-left:44px;}
     .dot{animation:none;}
+    .chrome-toggle__chevron{transition:none;}
   }
 </style>
 </head>
 <body>
 
   <!-- Live packet ticker -->
-  <div class="ticker" aria-hidden="true">
+  <div class="ticker" id="chromeTicker" aria-hidden="true">
     <div class="ticker__track" id="ticker"></div>
   </div>
 
   <!-- Masthead -->
-  <header class="mast">
+  <header class="mast" id="chromeMast">
     <div class="mast__mark">
       <h1 class="brand">HACKER <em>CENTRAL</em></h1>
       <span class="tagline">Cybersecurity Simulator Hub</span>
@@ -204,19 +237,27 @@
     <div class="status"><span class="dot"></span>Lab node · isolated</div>
   </header>
 
-  <!-- Tabs -->
-  <nav class="tabs" role="tablist" aria-label="Simulators">
-    <button class="tab" role="tab" aria-selected="true" id="tab-0" aria-controls="frame-0"
-            data-url="https://clarence1979.github.io/ddossim/">
-      <span class="tab__name">DDoS Attack Cockpit</span>
-      <span class="tab__tag">Attack orchestration</span>
+  <!-- Tabs + collapse toggle -->
+  <div class="tabbar">
+    <nav class="tabs" role="tablist" aria-label="Simulators">
+      <button class="tab" role="tab" aria-selected="true" id="tab-0" aria-controls="frame-0"
+              data-url="https://clarence1979.github.io/ddossim/">
+        <span class="tab__name">DDoS Attack Cockpit</span>
+        <span class="tab__tag">Attack orchestration</span>
+      </button>
+      <button class="tab" role="tab" aria-selected="false" id="tab-1" aria-controls="frame-1"
+              data-url="https://clarence1979.github.io/cybersim/cyberrange.html">
+        <span class="tab__name">Cyber Range</span>
+        <span class="tab__tag">Practice environment</span>
+      </button>
+    </nav>
+    <button class="chrome-toggle" id="chromeToggle" type="button"
+            aria-expanded="true" aria-controls="chromeTicker chromeMast"
+            title="Collapse header (H)">
+      <span class="chrome-toggle__chevron" aria-hidden="true">▲</span>
+      <span class="chrome-toggle__label" id="chromeToggleLabel">Hide</span>
     </button>
-    <button class="tab" role="tab" aria-selected="false" id="tab-1" aria-controls="frame-1"
-            data-url="https://clarence1979.github.io/cybersim/cyberrange.html">
-      <span class="tab__name">Cyber Range</span>
-      <span class="tab__tag">Practice environment</span>
-    </button>
-  </nav>
+  </div>
 
   <!-- Viewport -->
   <main class="stage">
@@ -294,6 +335,31 @@
   // Init first tab.
   tabs[0].tabIndex = 0;
   activate(0, false);
+
+  // ---- Collapse / expand the header chrome ----
+  var toggle = document.getElementById('chromeToggle');
+  var toggleLabel = document.getElementById('chromeToggleLabel');
+  var collapsed = false;
+
+  function setCollapsed(state){
+    collapsed = state;
+    document.body.classList.toggle('is-collapsed', collapsed);
+    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    toggle.title = (collapsed ? 'Show header (H)' : 'Collapse header (H)');
+    toggleLabel.textContent = collapsed ? 'Show' : 'Hide';
+  }
+
+  toggle.addEventListener('click', function(){ setCollapsed(!collapsed); });
+
+  // "H" toggles too, as long as focus isn't inside a text field.
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'h' && e.key !== 'H') return;
+    if(e.metaKey || e.ctrlKey || e.altKey) return;
+    var t = e.target;
+    if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    setCollapsed(!collapsed);
+  });
 
   // ---- Packet ticker feed ----
   function ip(){ return [10, r(1,254), r(0,254), r(1,254)].join('.'); }

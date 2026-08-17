@@ -474,6 +474,8 @@ body.lighttheme #netmon,body.lighttheme #netMap .nm-node,body.lighttheme #tmHold
 .stepbody .cmd:before{content:"$";color:#4d8;margin-right:8px}
 .stepbody .cmd:after{content:"copy";position:absolute;right:9px;top:8px;font:600 9px var(--sans);color:#567;letter-spacing:.1em}
 .stepbody .cmd.copied:after{content:"copied ✓";color:#4d8}
+.stepbody .cmd.copyfail:after{content:"press Ctrl+C";color:#f5a524}
+.stepbody .cmd::selection,.stepbody .cmd *::selection{background:#2b6cb0;color:#fff}
 .why{background:var(--why);border:1px solid var(--whyln);border-radius:10px;padding:11px 12px 11px 13px;margin:2px 0 12px;position:relative}
 .why:before{content:"WHY THIS MATTERS";display:block;font:800 9.5px var(--sans);letter-spacing:.14em;color:var(--whytx);margin-bottom:5px}
 .why div{font-size:12.5px;line-height:1.55;color:#5c4a1e} .why b{color:#4a3a12}
@@ -1173,6 +1175,37 @@ const Bus = (()=>{ const m={}; return {
   on(e,cb){ (m[e]=m[e]||[]).push(cb); return ()=>{ m[e]=m[e].filter(x=>x!==cb); }; },
   fire(e,p){ (m[e]||[]).slice().forEach(cb=>cb(p)); }
 };})();
+
+/* ---------- clipboard ----------
+   navigator.clipboard is unavailable on file:// and can be blocked inside
+   sandboxed / cross-origin iframes, so always keep the execCommand path. */
+async function copyText(text){
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  }catch(e){ /* fall through to legacy path */ }
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=text;
+    ta.setAttribute('readonly','');
+    ta.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;';
+    document.body.appendChild(ta);
+    const sel=document.getSelection();
+    const prev=(sel && sel.rangeCount>0)?sel.getRangeAt(0):null;
+    ta.focus(); ta.select(); ta.setSelectionRange(0,ta.value.length);
+    const ok=document.execCommand('copy');
+    ta.remove();
+    if(prev && sel){ sel.removeAllRanges(); sel.addRange(prev); }
+    return !!ok;
+  }catch(e){ return false; }
+}
+/* select a node's text so the user can finish the copy by hand */
+function selectNodeText(node){
+  try{ const r=document.createRange(); r.selectNodeContents(node);
+    const s=document.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(e){}
+}
 
 /* ---------- toast ---------- */
 let toastT;
@@ -3410,7 +3443,14 @@ const Runner=(()=>{
     box.innerHTML=html;
 
     // copy-command chips
-    $$('.stepbody .cmd').forEach(c=>c.onclick=()=>{ navigator.clipboard&&navigator.clipboard.writeText(c.textContent).catch(()=>{}); c.classList.add('copied'); setTimeout(()=>c.classList.remove('copied'),1500); });
+    $$('.stepbody .cmd').forEach(c=>c.onclick=async()=>{
+      const txt=(c.textContent||'').trim();
+      const ok=await copyText(txt);
+      c.classList.remove('copied','copyfail');
+      c.classList.add(ok?'copied':'copyfail');
+      if(!ok){ selectNodeText(c); toast('Clipboard blocked — text selected, press Ctrl+C'); }
+      setTimeout(()=>c.classList.remove('copied','copyfail'),1800);
+    });
 
     // Show-me visibility
     $('#showMe').style.visibility = (s.auto && !s.chk && !s.demo) ? 'hidden':'visible';
