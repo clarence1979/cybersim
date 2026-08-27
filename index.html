@@ -88,6 +88,7 @@
   .pl1,.pl2{color:#5b9bff;font-weight:700}
   .ku{color:#5b9bff}.kp{color:#eef3fb}.kd{color:#eef3fb}
   .kinput{color:#d7f7e2;white-space:pre-wrap;word-break:break-word}
+  #kClip{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0;border:0;padding:0;margin:0;resize:none;pointer-events:none;white-space:pre}
   .kcaret{color:#3ddc84;animation:blink 1.05s step-end infinite;margin-left:1px;font-weight:700}
   @keyframes blink{50%{opacity:0}}
   .prompt-echo{color:#5b9bff;font-weight:700}
@@ -193,7 +194,7 @@
   <div class="rightcol" id="rightcol">
     <div class="win kali" id="kaliWin">
       <div class="titlebar"><div class="dots"><i class="rd"></i><i class="yl"></i><i class="gn"></i></div><span class="tb-label">kali@kali: ~ — zsh</span><span class="sp"></span><span class="gr" id="kState">attacker</span><button class="collapse" data-pane="kali" title="Collapse / expand">▾</button></div>
-      <div class="termbody" id="kBody">
+      <div class="termbody" id="kBody"><textarea id="kClip" aria-hidden="true" tabindex="-1" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"></textarea>
         <div id="kOut"></div>
         <div id="kPrompt">
           <div class="pl1">┌──(<span class="ku">kali</span>㉿<span class="ku">kali</span>)-[<span class="kp">~</span>]</div>
@@ -658,17 +659,45 @@
     line=""; renderLine(); command(queue.shift());
     setTimeout(()=>runPaste(queue,leave),40);
   }
-  document.addEventListener("paste",e=>{
-    if(modal!==null&&modal!=="sqli-input") return;   // nano & menu modes handle their own input
-    const cd=e.clipboardData||window.clipboardData; if(!cd) return;
-    let txt=cd.getData("text"); if(txt==null) return;
-    e.preventDefault();
-    txt=txt.replace(/\r\n?/g,"\n").replace(/\n$/,"");
+  // ---- clipboard bridge ----
+  // This terminal reads keystrokes at the document level and has no real <input>,
+  // so a plain paste event often never fires (nothing focusable is focused), and
+  // Ctrl+C can grab an empty field. A hidden, always-focused capture field fixes
+  // both: paste fires on it and bubbles up, and copy is handled explicitly.
+  const kClip=document.getElementById("kClip");
+  function focusClip(){ if(!kClip)return; try{ kClip.value=""; kClip.focus({preventScroll:true}); }catch(_){} }
+  if(kClip){
+    focusClip();
+    // Refocus when the user works in the terminal, but never mid-selection (that would drop their highlight).
+    const _kw=document.getElementById("kaliWin"); if(_kw) _kw.addEventListener("pointerdown",()=>setTimeout(()=>{ const sel=window.getSelection?(window.getSelection()+"").length:0; if(!sel) focusClip(); },0));
+    document.addEventListener("pointerup",()=>setTimeout(()=>{ const sel=window.getSelection?(window.getSelection()+"").length:0; if(!sel&&modal!=="nano") focusClip(); },0));
+    window.addEventListener("focus",focusClip);
+  }
+  function handlePaste(txt){
+    if(modal!==null&&modal!=="sqli-input") return;
+    if(txt==null) return;
+    txt=(""+txt).replace(/\r\n?/g,"\n").replace(/\n$/,"");
+    if(!txt) return;
     if(modal==="sqli-input"){ line+=txt.replace(/\n/g," "); renderLine(); return; }
     if(!inputOn) return;
     const segs=txt.split("\n");
     line+=segs[0]; renderLine();
     if(segs.length>1){ const runList=[line].concat(segs.slice(1,-1)); const leave=segs[segs.length-1]; line=""; renderLine(); runPaste(runList,leave); }
+  }
+  let _lastPaste=0;
+  function onPaste(e){ const now=Date.now(); if(now-_lastPaste<60) return; // dedupe (target + bubble)
+    const cd=e.clipboardData||window.clipboardData; if(!cd) return;
+    const txt=cd.getData("text"); if(txt==null||txt==="") return;
+    _lastPaste=now; e.preventDefault(); if(kClip) kClip.value=""; handlePaste(txt); focusClip();
+  }
+  document.addEventListener("paste",onPaste);
+  if(kClip) kClip.addEventListener("paste",onPaste);
+  // Copy the visible selection no matter where focus sits (keeps select+Ctrl+C reliable).
+  document.addEventListener("copy",e=>{ const sel=window.getSelection?(""+window.getSelection()):""; if(!sel) return;
+    try{ e.clipboardData.setData("text/plain",sel); e.preventDefault(); }catch(_){}
+  });
+  document.addEventListener("cut",e=>{ const sel=window.getSelection?(""+window.getSelection()):""; if(!sel) return;
+    try{ e.clipboardData.setData("text/plain",sel); e.preventDefault(); }catch(_){}   // no real deletion — output is read-only
   });
   // The terminal captures keystrokes at the document level, like a real shell —
   // no need to click a field first; typing always reaches the command line.
