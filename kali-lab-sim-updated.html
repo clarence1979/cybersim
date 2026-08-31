@@ -2404,13 +2404,26 @@ function forceRevealDesktop(){ const b=document.getElementById('boot'); if(b){ b
     .ph-card{width:340px;max-width:92%;background:#fff;border:1px solid #dbdbdb;border-radius:10px;padding:26px 30px;box-shadow:0 2px 14px rgba(0,0,0,.06)}
     .ph-in{width:100%;padding:11px;margin:5px 0;border:1px solid #ccc;border-radius:6px;font-size:13px;box-sizing:border-box}
     .ph-btn{width:100%;margin-top:12px;border:0;border-radius:8px;padding:11px;font-weight:700;cursor:pointer;color:#fff}
-    .soc-top{display:flex;gap:22px;align-items:center;padding:22px;border-bottom:1px solid #2a3247}
-    .soc-av{width:78px;height:78px;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#26c6da);display:flex;align-items:center;justify-content:center;font:700 30px sans-serif;color:#fff}
-    .soc-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;padding:3px}
-    .soc-post{aspect-ratio:1;background:#141c2e;border-radius:4px;padding:10px;font-size:11px;color:#c9d6ef;display:flex;flex-direction:column;justify-content:flex-end;line-height:1.4;position:relative;overflow:hidden}
-    .soc-post .emo{position:absolute;top:8px;right:10px;font-size:20px;opacity:.85}
-    .soc-leak{background:#3a2416;border:1px solid #6b431f;color:#ffcf9e}
-    .soc-dm{padding:14px 20px;border-top:1px solid #2a3247;font-size:12px;color:#9fb0d0}
+    .soc-wrap{display:flex;flex-direction:column;height:100%;background:#0b0f18}
+    .soc-urlbar{display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;background:#e9edf3;color:#333;font:12.5px var(--mono);border-bottom:1px solid #d5dae2;flex:none}
+    .soc-scroll{flex:1;overflow:auto}
+    .soc-top{display:flex;gap:26px;align-items:center;padding:26px 30px;border-bottom:1px solid #2a3247;max-width:960px;margin:0 auto}
+    .soc-av{width:96px;height:96px;flex:none;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#26c6da);display:flex;align-items:center;justify-content:center;font:700 38px sans-serif;color:#fff;box-shadow:0 0 0 3px #0b0f18,0 0 0 5px #2a3247}
+    .soc-btns{margin-top:10px;display:flex;gap:8px}
+    .soc-btns button{font:600 12px sans-serif;border:0;border-radius:8px;padding:7px 16px;cursor:pointer}
+    .soc-btn-follow{background:#2f7bff;color:#fff}
+    .soc-btn-msg{background:#222c40;color:#dbe4f5}
+    .soc-tabs{display:flex;gap:44px;justify-content:center;border-top:1px solid #1c2434;border-bottom:1px solid #1c2434;margin:0 auto;max-width:960px;padding:12px 0;font:600 11px var(--mono);letter-spacing:1.5px;color:#7f8db0}
+    .soc-tabs .on{color:#dbe4f5;border-top:1px solid #dbe4f5;margin-top:-13px;padding-top:12px}
+    .soc-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;padding:5px;max-width:960px;margin:0 auto}
+    .soc-post{aspect-ratio:1;position:relative;overflow:hidden;border-radius:3px;background:#0e1526;cursor:pointer}
+    .soc-post svg{position:absolute;inset:0;width:100%;height:100%;display:block;transition:transform .45s ease}
+    .soc-post:hover svg{transform:scale(1.05)}
+    .soc-post .soc-cap{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:30px 11px 10px;font:12px/1.4 sans-serif;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.35) 40%,rgba(0,0,0,.82));text-shadow:0 1px 3px rgba(0,0,0,.7)}
+    .soc-post .soc-cap b{color:#ffe08a;font-weight:700}
+    .soc-post .emo{position:absolute;top:8px;right:10px;z-index:3;font-size:17px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.65))}
+    .soc-post .soc-recon{position:absolute;top:8px;left:8px;z-index:3;background:rgba(230,150,45,.94);color:#241405;font:700 9px var(--mono);padding:3px 7px;border-radius:999px;letter-spacing:.4px;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+    .soc-dm{padding:16px 30px;border-top:1px solid #2a3247;font-size:12px;color:#9fb0d0;max-width:960px;margin:0 auto}
     /* richer search rows */
     .kf-app .ameta{margin-left:auto;font:10.5px var(--mono,monospace);color:#7f8db0;padding-left:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
     .kf-app .akind{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#5f7bb5;border:1px solid #2b3a5c;border-radius:4px;padding:0 5px;margin-left:8px}
@@ -2707,41 +2720,172 @@ function forceRevealDesktop(){ const b=document.getElementById('boot'); if(b){ b
 
   /* -------- breached social account (emulated) with story breadcrumbs -------- */
   const SocialAccount={
+    // ---- inline, fully-offline "photos" (SVG). No external URLs; renders from file:// ----
+    photos(){
+      const wifi=esc(TARGET.wifi);
+      return {
+      router:`<svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="rt_bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#153057"/><stop offset="1" stop-color="#060d1a"/></linearGradient></defs>
+        <rect width="300" height="300" fill="url(#rt_bg)"/>
+        <g stroke="#4cc4f7" fill="none" stroke-width="4" stroke-linecap="round">
+          <path d="M110 150 a56 56 0 0 1 80 0" opacity="0.7"/>
+          <path d="M88 128 a88 88 0 0 1 124 0" opacity="0.45"/>
+          <path d="M66 106 a119 119 0 0 1 168 0" opacity="0.22"/></g>
+        <rect x="92" y="150" width="116" height="66" rx="12" fill="#1b2436" stroke="#33415c" stroke-width="2"/>
+        <rect x="112" y="106" width="8" height="48" rx="4" fill="#2a3550"/><rect x="180" y="106" width="8" height="48" rx="4" fill="#2a3550"/>
+        <circle cx="116" cy="104" r="6" fill="#33415c"/><circle cx="184" cy="104" r="6" fill="#33415c"/>
+        <circle cx="108" cy="183" r="4" fill="#37e08a"><animate attributeName="opacity" values="1;0.2;1" dur="1.1s" repeatCount="indefinite"/></circle>
+        <circle cx="124" cy="183" r="4" fill="#f5b73d"><animate attributeName="opacity" values="0.3;1;0.3" dur="1.6s" repeatCount="indefinite"/></circle>
+        <circle cx="140" cy="183" r="4" fill="#38bdf8"/>
+        <rect x="150" y="192" width="94" height="26" rx="6" fill="#081120" stroke="#4cc4f7" stroke-width="1.5"/>
+        <text x="197" y="209" font-family="monospace" font-size="12" fill="#8fe8ff" text-anchor="middle">${wifi}</text></svg>`,
+      speaker:`<svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="sp_bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b303b"/><stop offset="1" stop-color="#0a0c11"/></linearGradient>
+        <radialGradient id="sp_w" cx="0.5" cy="0.4" r="0.6"><stop offset="0" stop-color="#3a3f4b"/><stop offset="1" stop-color="#090b0f"/></radialGradient></defs>
+        <rect width="300" height="300" fill="url(#sp_bg)"/>
+        <ellipse cx="150" cy="52" rx="150" ry="56" fill="#37e08a" opacity="0.12"/>
+        <rect x="88" y="38" width="124" height="224" rx="22" fill="#15181f" stroke="#2c313c" stroke-width="2"/>
+        <circle cx="150" cy="96" r="33" fill="url(#sp_w)" stroke="#000" stroke-width="2"/>
+        <circle cx="150" cy="96" r="19" fill="#0c0e12" stroke="#232733" stroke-width="2"/><circle cx="150" cy="96" r="6" fill="#1a1d24"/>
+        <circle cx="150" cy="198" r="40" fill="url(#sp_w)" stroke="#000" stroke-width="2"/>
+        <circle cx="150" cy="198" r="23" fill="#0c0e12" stroke="#232733" stroke-width="2"/><circle cx="150" cy="198" r="7" fill="#1a1d24"/>
+        <circle cx="150" cy="148" r="4" fill="#37e08a"><animate attributeName="opacity" values="1;0.35;1" dur="1.8s" repeatCount="indefinite"/></circle>
+        <text x="150" y="250" font-family="monospace" font-size="12" fill="#9198a6" text-anchor="middle" letter-spacing="1">${esc(TARGET.speaker)}</text>
+        <g stroke="#37e08a" stroke-width="3" fill="none" opacity="0.5" stroke-linecap="round">
+          <path d="M232 118 q16 30 0 60"/><path d="M250 102 q28 46 0 92"/>
+          <path d="M68 118 q-16 30 0 60"/><path d="M50 102 q-28 46 0 92"/></g></svg>`,
+      plane:`<svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="pl_sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f74d0"/><stop offset="0.6" stop-color="#7fb0e6"/><stop offset="1" stop-color="#dff0ff"/></linearGradient></defs>
+        <rect width="300" height="300" fill="url(#pl_sky)"/>
+        <circle cx="66" cy="58" r="34" fill="#fff" opacity="0.45"/><circle cx="66" cy="58" r="17" fill="#fff" opacity="0.75"/>
+        <g fill="#ffffff" opacity="0.92"><ellipse cx="118" cy="236" rx="72" ry="26"/><ellipse cx="214" cy="252" rx="82" ry="30"/><ellipse cx="56" cy="256" rx="60" ry="26"/></g>
+        <path d="M300 148 L150 206 L152 222 L300 190 Z" fill="#c9d4e0"/>
+        <path d="M300 148 L150 206 L206 200 Z" fill="#e8eff5"/>
+        <rect x="196" y="196" width="16" height="8" fill="#8a99ab"/></svg>`,
+      cafe:`<svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="cf_bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b4b34"/><stop offset="1" stop-color="#341f11"/></linearGradient></defs>
+        <rect width="300" height="300" fill="url(#cf_bg)"/>
+        <g opacity="0.22" stroke="#2a1a0e" stroke-width="2"><line x1="0" y1="72" x2="300" y2="72"/><line x1="0" y1="150" x2="300" y2="150"/><line x1="0" y1="228" x2="300" y2="228"/></g>
+        <ellipse cx="150" cy="206" rx="94" ry="28" fill="#efe7db"/><ellipse cx="150" cy="202" rx="94" ry="26" fill="#f6f0e7"/>
+        <path d="M76 152 h148 a10 10 0 0 1 10 10 v4 a84 38 0 0 1 -168 0 v-4 a10 10 0 0 1 10 -10 z" fill="#fbfaf6"/>
+        <ellipse cx="150" cy="152" rx="80" ry="25" fill="#c8a06a"/><ellipse cx="150" cy="150" rx="80" ry="25" fill="#e7c79a"/>
+        <path d="M150 135 c-9 6 -9 21 0 32 c9 -11 9 -26 0 -32 z" fill="#a9793f" opacity="0.8"/>
+        <path d="M150 150 q-19 -4 -30 6 M150 156 q-15 -2 -24 6" stroke="#a9793f" stroke-width="2" fill="none" opacity="0.7"/>
+        <path d="M230 156 a22 20 0 0 1 0 34" fill="none" stroke="#fbfaf6" stroke-width="10"/>
+        <g stroke="#fff" stroke-width="3" fill="none" opacity="0.32" stroke-linecap="round"><path d="M128 122 q10 -12 0 -24 q-10 -12 0 -24"/><path d="M172 122 q10 -12 0 -24 q-10 -12 0 -24"/></g></svg>`,
+      skyline:`<svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="sk_bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9a5a"/><stop offset="0.45" stop-color="#c9628f"/><stop offset="1" stop-color="#39235a"/></linearGradient></defs>
+        <rect width="300" height="300" fill="url(#sk_bg)"/>
+        <circle cx="150" cy="116" r="38" fill="#ffd9a0" opacity="0.8"/>
+        <rect x="0" y="234" width="300" height="66" fill="#2a1d45" opacity="0.55"/>
+        <g fill="#241634"><rect x="20" y="152" width="34" height="90"/><rect x="58" y="182" width="26" height="60"/><rect x="90" y="122" width="30" height="120"/><rect x="126" y="92" width="26" height="150"/><rect x="150" y="74" width="18" height="168"/><rect x="176" y="142" width="30" height="100"/><rect x="210" y="112" width="24" height="130"/><rect x="238" y="162" width="30" height="80"/><rect x="270" y="186" width="24" height="56"/></g>
+        <g fill="#ffd166" opacity="0.9"><rect x="132" y="112" width="4" height="6"/><rect x="140" y="122" width="4" height="6"/><rect x="132" y="142" width="4" height="6"/><rect x="155" y="94" width="3" height="5"/><rect x="160" y="106" width="3" height="5"/><rect x="155" y="132" width="3" height="5"/><rect x="98" y="142" width="4" height="6"/><rect x="106" y="162" width="4" height="6"/><rect x="216" y="132" width="4" height="6"/><rect x="224" y="152" width="4" height="6"/></g></svg>`,
+      cake:`<svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="ck_bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b2a7a"/><stop offset="1" stop-color="#280f3d"/></linearGradient></defs>
+        <rect width="300" height="300" fill="url(#ck_bg)"/>
+        <g><rect x="40" y="42" width="10" height="6" fill="#ffd166" transform="rotate(20 45 45)"/><rect x="232" y="60" width="10" height="6" fill="#06d6a0" transform="rotate(-15 237 63)"/><rect x="70" y="92" width="8" height="8" fill="#ef476f" transform="rotate(30 74 96)"/><rect x="250" y="120" width="8" height="8" fill="#118ab2" transform="rotate(10 254 124)"/><circle cx="200" cy="44" r="4" fill="#ffd166"/><circle cx="110" cy="54" r="4" fill="#06d6a0"/></g>
+        <ellipse cx="150" cy="252" rx="112" ry="20" fill="#e9e2ea"/>
+        <path d="M72 178 q20 18 40 0 t40 0 t40 0 t36 0 V240 H72 Z" fill="#fff5ef"/>
+        <rect x="72" y="188" width="156" height="52" fill="#f6d9c0"/>
+        <rect x="72" y="204" width="156" height="12" fill="#7b4a2d"/>
+        <text x="150" y="228" font-family="Georgia,serif" font-size="24" fill="#7b4a2d" text-anchor="middle" font-weight="bold">34</text>
+        <g><rect x="118" y="142" width="7" height="34" fill="#ef476f"/><rect x="175" y="142" width="7" height="34" fill="#06d6a0"/>
+          <ellipse cx="121.5" cy="136" rx="5" ry="9" fill="#ffb703"><animate attributeName="ry" values="9;7;9" dur="0.7s" repeatCount="indefinite"/></ellipse>
+          <ellipse cx="178.5" cy="136" rx="5" ry="9" fill="#ffb703"><animate attributeName="ry" values="8;10;8" dur="0.8s" repeatCount="indefinite"/></ellipse></g></svg>`,
+      gym:`<svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="gy_bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#222a34"/><stop offset="1" stop-color="#0b0e13"/></linearGradient></defs>
+        <rect width="300" height="300" fill="url(#gy_bg)"/>
+        <ellipse cx="150" cy="80" rx="160" ry="52" fill="#f4813f" opacity="0.1"/>
+        <g transform="rotate(-20 150 160)">
+          <rect x="70" y="150" width="160" height="20" rx="10" fill="#3a424e"/>
+          <rect x="52" y="128" width="26" height="64" rx="8" fill="#1c2129" stroke="#4a5460" stroke-width="2"/>
+          <rect x="34" y="136" width="22" height="48" rx="8" fill="#1c2129" stroke="#4a5460" stroke-width="2"/>
+          <rect x="222" y="128" width="26" height="64" rx="8" fill="#1c2129" stroke="#4a5460" stroke-width="2"/>
+          <rect x="244" y="136" width="22" height="48" rx="8" fill="#1c2129" stroke="#4a5460" stroke-width="2"/>
+          <rect x="96" y="152" width="108" height="16" rx="8" fill="#2b323c"/></g>
+        <text x="150" y="252" font-family="monospace" font-size="13" fill="#f4813f" text-anchor="middle" letter-spacing="2" opacity="0.85">NEW PB</text></svg>`,
+      pizza:`<svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="pz_bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2416"/><stop offset="1" stop-color="#1c120a"/></linearGradient></defs>
+        <rect width="300" height="300" fill="url(#pz_bg)"/>
+        <ellipse cx="150" cy="162" rx="122" ry="112" fill="#5a3c22"/>
+        <path d="M150 42 L250 250 L50 250 Z" fill="#f2c14e"/>
+        <path d="M150 70 L228 236 L72 236 Z" fill="#f6d873" opacity="0.7"/>
+        <path d="M50 250 Q150 286 250 250 L250 252 Q150 290 50 252 Z" fill="#c9821f"/>
+        <path d="M150 42 L250 250 L50 250 Z" fill="none" stroke="#d98e04" stroke-width="3"/>
+        <circle cx="150" cy="132" r="15" fill="#c0392b"/><circle cx="120" cy="186" r="14" fill="#c0392b"/><circle cx="182" cy="186" r="13" fill="#c0392b"/><circle cx="150" cy="216" r="12" fill="#c0392b"/>
+        <ellipse cx="176" cy="152" rx="8" ry="5" fill="#3f7d34" transform="rotate(30 176 152)"/><ellipse cx="126" cy="152" rx="7" ry="4" fill="#3f7d34" transform="rotate(-20 126 152)"/></svg>`,
+      dog:`<svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="dg_sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fd3f0"/><stop offset="1" stop-color="#cfe8c7"/></linearGradient></defs>
+        <rect width="300" height="300" fill="url(#dg_sky)"/>
+        <circle cx="248" cy="52" r="30" fill="#fff3b0" opacity="0.9"/>
+        <path d="M0 212 q75 -24 150 0 t150 0 V300 H0 Z" fill="#6fae52"/>
+        <path d="M0 234 q75 -18 150 0 t150 0 V300 H0 Z" fill="#5b9a45"/>
+        <g transform="translate(150 206)">
+          <path d="M52 -8 q28 -8 30 -34" stroke="#e0a24a" stroke-width="12" fill="none" stroke-linecap="round"/>
+          <ellipse cx="20" cy="0" rx="50" ry="30" fill="#eab35a"/>
+          <rect x="-18" y="18" width="12" height="34" rx="6" fill="#e0a24a"/><rect x="30" y="18" width="12" height="34" rx="6" fill="#e0a24a"/>
+          <circle cx="-40" cy="-14" r="26" fill="#eab35a"/>
+          <path d="M-58 -30 q-14 6 -6 30 q14 -6 12 -28 z" fill="#d9973f"/>
+          <ellipse cx="-62" cy="-6" rx="16" ry="12" fill="#f2c983"/>
+          <circle cx="-74" cy="-8" r="4" fill="#3a2416"/><circle cx="-46" cy="-18" r="3.5" fill="#3a2416"/>
+          <path d="M-66 4 q4 12 -4 16" stroke="#e26d7a" stroke-width="6" fill="none" stroke-linecap="round"/></g></svg>`
+      };
+    },
     open(site,email){
       site=site||'Instagram';
-      openWindow({id:'social',title:'Firefox — '+site+' · @'+TARGET.handle,icon:(ICON.firefox||IMG.firefox||''),w:940,h:640,x:150,y:36,
+      this._email=email||TARGET.email;
+      openWindow({id:'social',title:'Firefox — '+site+' · @'+TARGET.handle,icon:(ICON.firefox||IMG.firefox||''),w:1040,h:680,x:70,y:40,
         mount:(b)=>this.mount(b,site,email), onClose:()=>{}});
+      // fill the whole app like a real full-screen browser (idempotent — don't toggle if already maxed)
+      try{ const w=Windows['social']; if(w && !w.el.classList.contains('max') && typeof maximizeWin==='function') maximizeWin('social'); }catch(e){}
       Bus.emit('social');
     },
     mount(b,site,email){
+      const P=this.photos();
       const posts=[
-        {emo:'🔊',t:`New <b>${esc(TARGET.speaker)}</b> finally set up in the lounge — this thing is LOUD 🎶`},
-        {emo:'🏠',t:`WFH life. New router’s up, called it <b>${esc(TARGET.wifi)}</b> 😅 (yes I reused the old password)`,leak:true},
-        {emo:'☕',t:`Same corner cafe every morning before ${esc(TARGET.company)}. Creature of habit.`},
-        {emo:'🐕',t:`Weekend walks with Biscuit 🐾`},
-        {emo:'✈️',t:`Counting down to the Bali trip. Out of office soon!`,leak:true},
-        {emo:'🎂',t:`Turning the big 3-4 next week 🎉`},
+        {k:'router', emo:'📶', leak:true, cap:`WFH life — new router's up, called it <b>${esc(TARGET.wifi)}</b> 😅 (reused the old password, don't judge)`},
+        {k:'speaker',emo:'🔊', leak:true, cap:`New <b>${esc(TARGET.speaker)}</b> in the lounge. This thing is LOUD 🎶`},
+        {k:'plane',  emo:'✈️', cap:`Counting down to Bali — OOO all next week ☀️`},
+        {k:'cafe',   emo:'☕', cap:`Same corner café every morning before ${esc(TARGET.company)}. Creature of habit.`},
+        {k:'skyline',emo:'🌆', cap:`${esc(TARGET.city)} nights hit different.`},
+        {k:'cake',   emo:'🎂', cap:`Turning 34 next week 🎉`},
+        {k:'gym',    emo:'🏋️', cap:`5am club. New deadlift PB 🔥`},
+        {k:'pizza',  emo:'🍕', cap:`Friday = pizza night, non-negotiable`},
+        {k:'dog',    emo:'🐾', cap:`Weekend walks with Biscuit`}
       ];
-      b.style.background='#0b0f18'; b.style.color='#dbe4f5';
+      const tiles=posts.map(p=>`
+        <div class="soc-post">
+          ${P[p.k]||''}
+          ${p.leak?'<span class="soc-recon">👁 LEAKS INTEL</span>':''}
+          <span class="emo">${p.emo}</span>
+          <div class="soc-cap">${p.cap}</div>
+        </div>`).join('');
+      b.classList.add('noscroll');
       b.innerHTML=`
-        <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;background:#e9edf3;color:#333;font:12px var(--mono);border-bottom:1px solid #d5dae2">
-          <span style="flex:1;background:#fff;border:1px solid #cfd6e0;border-radius:12px;padding:3px 10px;color:#1f9d6b">🔒 ${esc(site.toLowerCase())}.com/${esc(TARGET.handle)}  ·  logged in</span></div>
-        <div style="height:calc(100% - 34px);overflow:auto">
-          <div class="soc-top">
-            <div class="soc-av">${esc(TARGET.first[0])}</div>
-            <div>
-              <div style="font-size:19px;font-weight:700">@${esc(TARGET.handle)}</div>
-              <div style="color:#9fb0d0;font-size:13px">${esc(TARGET.name)} · ${esc(TARGET.role)} @ ${esc(TARGET.company)}</div>
-              <div style="color:#7f8db0;font-size:12px;margin-top:4px">${esc(TARGET.city)} · ${esc(email||TARGET.email)}</div>
-              <div style="margin-top:8px;font-size:12px;color:#c7d3ea"><b>247</b> posts &nbsp; <b>1,043</b> followers &nbsp; <b>388</b> following</div>
+        <div class="soc-wrap">
+          <div class="soc-urlbar">
+            <span style="color:#1f9d6b">🔒</span>
+            <span style="flex:1;background:#fff;border:1px solid #cfd6e0;border-radius:12px;padding:4px 12px">${esc(site.toLowerCase())}.com/${esc(TARGET.handle)}
+              <span style="color:#1f9d6b"> · logged in</span></span>
+            <span style="color:#7a8494">☰</span>
+          </div>
+          <div class="soc-scroll">
+            <div class="soc-top">
+              <div class="soc-av">${esc(TARGET.first[0])}</div>
+              <div style="flex:1">
+                <div style="font-size:22px;font-weight:700">@${esc(TARGET.handle)}</div>
+                <div style="color:#9fb0d0;font-size:14px;margin-top:2px">${esc(TARGET.name)} · ${esc(TARGET.role)} @ ${esc(TARGET.company)}</div>
+                <div style="color:#7f8db0;font-size:12px;margin-top:4px">📍 ${esc(TARGET.city)} · ✉️ ${esc(email||TARGET.email)}</div>
+                <div style="margin-top:10px;font-size:13px;color:#c7d3ea"><b>247</b> posts &nbsp;&nbsp; <b>1,043</b> followers &nbsp;&nbsp; <b>388</b> following</div>
+                <div class="soc-btns"><button class="soc-btn-follow">Following ✓</button><button class="soc-btn-msg">Message</button></div>
+              </div>
             </div>
-          </div>
-          <div class="soc-grid">
-            ${posts.map(p=>`<div class="soc-post ${p.leak?'soc-leak':''}"><span class="emo">${p.emo}</span>${p.t}</div>`).join('')}
-          </div>
-          <div class="soc-dm">💬 <b>Direct messages</b> — “hey did you get that Northwind invoice?”, “gym at 6?”, “speaker’s too loud again lol”</div>
-          <div style="padding:14px 20px;border-top:1px solid #2a3247">
-            <div class="cmp-story" style="margin:0">🧠 <b>What just happened.</b> One phished password handed you his whole life. Two posts leak what you need next: his home Wi-Fi is <b>${esc(TARGET.wifi)}</b>, and he owns a <b>${esc(TARGET.speaker)}</b> Bluetooth speaker. That’s your pivot from his account to his network to the devices in his flat. <b>Lesson to pass on:</b> oversharing + reused passwords is how attackers chain one small leak into total access.</div>
+            <div class="soc-tabs"><span class="on">▦ POSTS</span><span>▶ REELS</span><span>◎ TAGGED</span></div>
+            <div class="soc-grid">${tiles}</div>
+            <div class="soc-dm">💬 <b>Direct messages</b> — “hey did you get that ${esc(TARGET.company)} invoice?” · “gym at 6?” · “speaker's too loud again lol”</div>
+            <div style="padding:16px 30px 26px;border-top:1px solid #2a3247;max-width:960px;margin:0 auto">
+              <div class="cmp-story" style="margin:0">🧠 <b>What just happened.</b> One phished password handed you his whole feed. Two posts quietly leak your next moves: his home Wi-Fi is <b>${esc(TARGET.wifi)}</b> (and he admits he reused the password), and he owns a <b>${esc(TARGET.speaker)}</b> Bluetooth speaker. The Bali post even tells you when the flat is empty. That's the pivot: account → home network → the devices in his lounge. <b>Lesson to pass on:</b> oversharing + reused passwords is how one small leak chains into total access.</div>
+            </div>
           </div>
         </div>`;
     }
