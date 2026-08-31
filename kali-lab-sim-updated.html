@@ -673,9 +673,12 @@ const Term={
       else if(e.key==='ArrowUp'){ e.preventDefault(); if(this.history.length){ this.hi=Math.max(0,this.hi<0?this.history.length-1:this.hi-1); inp.value=this.history[this.hi]||''; setCaretEnd(inp);} }
       else if(e.key==='ArrowDown'){ e.preventDefault(); if(this.hi>=0){ this.hi++; if(this.hi>=this.history.length){this.hi=-1;inp.value='';} else inp.value=this.history[this.hi]; setCaretEnd(inp);} }
       else if(e.key==='l'&&e.ctrlKey){ e.preventDefault(); this.scroll.innerHTML=''; }
-      else if(e.key==='c'&&e.ctrlKey){ e.preventDefault(); this.echo(inp.value); this.print('^C','dim'); inp.value=''; if(this.mode!=='sh'){this.mode='sh';this.lead.innerHTML=promptLead();} this.showPrompt(); }
+      else if(e.key==='Tab'){ e.preventDefault(); if(this.complete)this.complete(); }
+      else if(e.key==='c'&&e.ctrlKey&&!e.shiftKey){ const sel=window.getSelection&&window.getSelection(); if(sel&&String(sel).length){ return; } e.preventDefault(); this.echo(inp.value); this.print('^C','dim'); inp.value=''; if(this.mode==='zphisher'&&window.ZPHISH&&ZPHISH.end){ ZPHISH.end(); } else if(this.mode!=='sh'){this.mode='sh';this.lead.innerHTML=promptLead();} this.showPrompt(); }
+      else if(e.key==='c'&&e.ctrlKey&&e.shiftKey){ /* let browser copy selection */ return; }
     };
-    this.scroll.parentElement.addEventListener('mousedown',e=>{ if(!e.target.closest('input'))setTimeout(()=>inp.focus(),0); });
+    inp.addEventListener('paste',(e)=>{ try{ const txt=((e.clipboardData||window.clipboardData).getData('text')||''); if(/\r|\n/.test(txt)){ e.preventDefault(); const lines=txt.split(/\r?\n/); (async()=>{ for(const ln of lines){ if(ln.trim()==='')continue; if(this.busy)return; inp.value=ln; await this.submit(ln); } })(); } }catch(_){} });
+    this.scroll.parentElement.addEventListener('mouseup',e=>{ if(e.target.closest('input'))return; const sel=window.getSelection&&window.getSelection(); if(sel&&String(sel).length)return; inp.focus(); });
   },
   print(html,cls){ const d=document.createElement('div'); d.className='ln'+(cls?(' '+cls):''); d.innerHTML=html; this.scroll.appendChild(d); this.scroll.scrollTop=this.scroll.scrollHeight; return d; },
   async typeLines(arr,delay=90){ for(const l of arr){ this.print(l.t||l, l.c||''); if(delay)await sleep(delay);} },
@@ -2343,6 +2346,863 @@ function forceRevealDesktop(){ const b=document.getElementById('boot'); if(b){ b
     window.SpiderFoot=SpiderFoot; window.Gophish=Gophish; window.PhishPage=PhishPage; window.ZPHISH=ZPHISH;
   }
   install();
+})();
+
+
+/* ================= injected: v2 upgrade block ================= */
+/* ============================================================================
+   v2 UPGRADE  ·  Digital Vector — Kali Lab Simulator
+   • realistic, interactive zphisher (typeable in the CLI, per-site pages)
+   • story-driven, gamified Guided Training (OSINT → phish → account → wifi → BT)
+   • global Applications search that finds every GUI tool AND CLI command
+   • many more working Linux/Kali CLI commands (traceroute/tracert, net, files…)
+   • terminal tab-autocomplete (bound in Term.bind above)
+   All output is scripted/emulated — nothing here touches a real host or radio.
+   ========================================================================== */
+(function(){
+  const _T=(h,c)=>Term.print(h,c);
+  const nap=ms=>new Promise(r=>setTimeout(r,ms));
+  const HAS=n=>typeof window[n]!=='undefined';
+
+  /* the fictional mark the whole campaign revolves around */
+  const TARGET = {
+    name:'Marcus Reed', first:'Marcus', handle:'marcus.reed',
+    company:'Northwind Trading', domain:'northwind-trading.com',
+    email:'m.reed@northwind-trading.com', role:'Marketing Manager',
+    site:'Instagram', wifi:'HomeNet_5G', speaker:'BoomBox-9000',
+    speakerMac:'4C:B9:9B:2A:7F:10', city:'Melbourne'
+  };
+  window.TARGET=TARGET;
+
+  /* ------------------------------------------------------------------ CSS */
+  (function(){
+    const css = `
+    .term-scroll .p{color:#c792ea}
+    .term-scroll .o{color:#ffb454}
+    /* objectives / campaign HUD */
+    .cmp-story{font-size:12.5px;color:#c7d3ea;line-height:1.55;background:#11192b;border:1px solid #26324e;border-left:3px solid var(--kali-cyan,#26c6da);border-radius:8px;padding:11px 13px;margin-bottom:12px}
+    .cmp-bar{height:8px;border-radius:6px;background:#141b2c;overflow:hidden;margin:4px 0 14px}
+    .cmp-bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#26c6da,#7c5cff);transition:width .35s}
+    .cmp-obj{display:flex;gap:11px;align-items:flex-start;padding:11px;border:1px solid #232f49;border-radius:10px;margin-bottom:9px;background:#0e1524;transition:.2s}
+    .cmp-obj.active{border-color:#3f6bd8;background:#101a30;box-shadow:0 0 0 1px #274069}
+    .cmp-obj.done{border-color:#1f5a3a;background:#0f1e17}
+    .cmp-obj.locked{opacity:.5}
+    .cmp-ic{width:30px;height:30px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;background:#182238}
+    .cmp-obj.done .cmp-ic{background:#123324}
+    .cmp-tt{font-weight:700;color:#e7eefb;font-size:13px;display:flex;align-items:center;gap:7px}
+    .cmp-obj.done .cmp-tt{color:#8ff0b4}
+    .cmp-hint{font-size:11.5px;color:#93a2c4;margin-top:3px;line-height:1.45}
+    .cmp-obj.done .cmp-hint{color:#6fb98f}
+    .cmp-badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;background:#1d2942;color:#8fb4ff}
+    .cmp-obj.done .cmp-badge{background:#12331f;color:#66e39a}
+    .cmp-go{margin-top:8px;font:600 11px var(--mono,monospace);background:#22335c;color:#cfe0ff;border:1px solid #34508a;border-radius:6px;padding:5px 11px;cursor:pointer}
+    .cmp-go:hover{background:#2b4372}
+    .cmp-lockmsg{font-size:10.5px;color:#6b7690;margin-top:6px}
+    /* per-site phishing pages + social account */
+    .ph-wrap{padding:0;height:calc(100% - 34px);overflow:auto;background:#fafafa;color:#222}
+    .ph-center{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px}
+    .ph-card{width:340px;max-width:92%;background:#fff;border:1px solid #dbdbdb;border-radius:10px;padding:26px 30px;box-shadow:0 2px 14px rgba(0,0,0,.06)}
+    .ph-in{width:100%;padding:11px;margin:5px 0;border:1px solid #ccc;border-radius:6px;font-size:13px;box-sizing:border-box}
+    .ph-btn{width:100%;margin-top:12px;border:0;border-radius:8px;padding:11px;font-weight:700;cursor:pointer;color:#fff}
+    .soc-top{display:flex;gap:22px;align-items:center;padding:22px;border-bottom:1px solid #2a3247}
+    .soc-av{width:78px;height:78px;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#26c6da);display:flex;align-items:center;justify-content:center;font:700 30px sans-serif;color:#fff}
+    .soc-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;padding:3px}
+    .soc-post{aspect-ratio:1;background:#141c2e;border-radius:4px;padding:10px;font-size:11px;color:#c9d6ef;display:flex;flex-direction:column;justify-content:flex-end;line-height:1.4;position:relative;overflow:hidden}
+    .soc-post .emo{position:absolute;top:8px;right:10px;font-size:20px;opacity:.85}
+    .soc-leak{background:#3a2416;border:1px solid #6b431f;color:#ffcf9e}
+    .soc-dm{padding:14px 20px;border-top:1px solid #2a3247;font-size:12px;color:#9fb0d0}
+    /* richer search rows */
+    .kf-app .ameta{margin-left:auto;font:10.5px var(--mono,monospace);color:#7f8db0;padding-left:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+    .kf-app .akind{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#5f7bb5;border:1px solid #2b3a5c;border-radius:4px;padding:0 5px;margin-left:8px}
+    `;
+    const s=document.createElement('style'); s.textContent=css; document.head.appendChild(s);
+  })();
+
+  /* -------------------------------------------------------------- event bus */
+  const Bus={ subs:{}, on(n,f){(this.subs[n]=this.subs[n]||[]).push(f);}, emit(n,d){(this.subs[n]||[]).forEach(f=>{try{f(d);}catch(e){}});} };
+  window.LabEvents=Bus;
+
+  /* =====================================================================
+     CAMPAIGN  ·  gamified objectives HUD + story spine
+     ===================================================================== */
+  const Campaign={
+    body:null,
+    objs:[
+      {id:'osint', ic:'🔍', title:'Profile the target', xp:20, tool:'theharvester',
+        hint:`Passive recon first. Find ${TARGET.first}’s work email and which social network he lives on. Run <b>theHarvester</b> on <code>${TARGET.domain}</code>, or open <b>SpiderFoot</b> / the <b>OSINT browser</b>.`,
+        done:`Linked <b>${TARGET.email}</b> to an active ${TARGET.site} account, <b>@${TARGET.handle}</b>.`},
+      {id:'phish', ic:'🎣', title:'Steal his login', xp:25, tool:'zphisher',
+        hint:`Social engineering. Clone his ${TARGET.site} sign-in with <b>zphisher</b>, hand him the link, and grab the password he types.`,
+        done:`Credentials captured — the password dropped straight into your terminal.`},
+      {id:'social', ic:'📱', title:'Break into the account', xp:20, tool:'__social',
+        hint:`Log in to the breached account and read his posts. People leak more about themselves than any scanner ever could.`,
+        done:`His posts leak his home Wi-Fi (<b>${TARGET.wifi}</b>) and a brand-new <b>${TARGET.speaker}</b> speaker.`},
+      {id:'wifi', ic:'📡', title:'Get onto his Wi-Fi', xp:30, tool:'fern-wifi-cracker',
+        hint:`You know the network now: <b>${TARGET.wifi}</b>. Capture a WPA handshake and crack it — monitor → airodump → deauth → aircrack, or the <b>Fern</b> GUI.`,
+        done:`You’re on ${TARGET.wifi} — the same network as every device in his flat.`},
+      {id:'bluetooth', ic:'🔵', title:'Silence the speaker', xp:20, tool:'__bluetooth',
+        hint:`From inside his network you’re in Bluetooth range. Flood the <b>${TARGET.speaker}</b> with <code>l2ping -f</code> (or the Bluetooth Manager) to drop its audio.`,
+        done:`The ${TARGET.speaker} went quiet.`},
+      {id:'report', ic:'📝', title:'Write the report', xp:15, tool:'__report',
+        hint:`The professional’s real job: document every weakness you used so the client can close it. Breaking in is easy — the report keeps people safe.`,
+        done:`Engagement documented. That’s the whole difference between a pro and a criminal.`},
+    ],
+    load(){ this.state=LS.get('kls_campaign',{}); return this.state; },
+    save(){ LS.set('kls_campaign',this.state||{}); },
+    isDone(id){ return !!(this.state&&this.state[id]); },
+    idx(id){ return this.objs.findIndex(o=>o.id===id); },
+    isUnlocked(id){ const i=this.idx(id); return i<=0 ? true : this.isDone(this.objs[i-1].id); },
+    pct(){ const d=this.objs.filter(o=>this.isDone(o.id)).length; return Math.round(100*d/this.objs.length); },
+    open(){
+      this.load();
+      openWindow({id:'campaign',title:'Operation Glass Cage — Objectives',icon:ICON.mission,w:430,h:560,x:24,y:70,
+        mount:(b)=>{ this.body=b; this.render(); }, onClose:()=>{ this.body=null; }});
+      focusWin('campaign');
+    },
+    render(){
+      const b=this.body; if(!b)return; this.load();
+      const pct=this.pct(), all=pct===100;
+      let html=`<div class="pad tool" style="padding:14px">
+        <div class="cmp-story">🎯 <b>The brief.</b> Your firm has written authorisation to test <b>${esc(TARGET.name)}</b> (${esc(TARGET.role)}, ${esc(TARGET.company)}). Prove how far a determined attacker gets from nothing but a name — then hand him the report. Same tools criminals use; the only difference is <b>permission</b>.</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#9fb0d0;margin-bottom:3px"><span>Progress</span><span>${pct}% · ⭐ ${State.xp} XP</span></div>
+        <div class="cmp-bar"><i style="width:${pct}%"></i></div>`;
+      this.objs.forEach(o=>{
+        const done=this.isDone(o.id), unlocked=this.isUnlocked(o.id), active=unlocked&&!done;
+        const cls=done?'done':(unlocked?(active?'active':''):'locked');
+        html+=`<div class="cmp-obj ${cls}">
+          <div class="cmp-ic">${done?'✅':o.ic}</div>
+          <div style="flex:1">
+            <div class="cmp-tt">${esc(o.title)} <span class="cmp-badge">${done?'CLEARED':('+'+o.xp+' XP')}</span></div>
+            <div class="cmp-hint">${done?o.done:o.hint}</div>
+            ${active?`<button class="cmp-go" data-tool="${esc(o.tool)}">▶ ${done?'Reopen':'Open tool'}</button>`:''}
+            ${(!unlocked&&!done)?`<div class="cmp-lockmsg">🔒 Complete the step above first.</div>`:''}
+          </div></div>`;
+      });
+      if(all){ html+=`<div class="cmp-story" style="border-left-color:#37d67a;background:#0f2018;border-color:#1f4a34;color:#a8f0c4;margin-top:6px">🏆 <b>Operation complete.</b> Recon → Access → Own → Pivot → Impact → Report. That order <i>is</i> the attacker’s playbook — and now you know the <i>why</i> behind every step. Stay authorised, always.</div>`; }
+      html+=`<div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn pri sm" id="cmp-guide">📖 Guided walkthrough</button>
+        <button class="btn ghost sm" id="cmp-reset">Reset</button></div></div>`;
+      b.innerHTML=html;
+      $$('[data-tool]',b).forEach(btn=>btn.onclick=()=>openTool(btn.dataset.tool));
+      const g=$('#cmp-guide',b); if(g)g.onclick=()=>{ if(typeof Tutorial!=='undefined')Tutorial.start(); };
+      const r=$('#cmp-reset',b); if(r)r.onclick=()=>{ this.state={}; this.save(); this.render(); toast('Campaign reset'); };
+    },
+    mark(id){
+      this.load();
+      if(this.state[id]) { if(this.body)this.render(); return; }
+      if(!this.isUnlocked(id)) return;              // enforce story order
+      this.state[id]=true; this.save();
+      const o=this.objs.find(x=>x.id===id);
+      if(o){ State.addSkill('Objective · '+o.title, o.xp); }
+      if(this.body)this.render();
+      if(typeof Tutorial!=='undefined'&&Tutorial.notify) Tutorial.notify(id);
+      if(this.pct()===100) setTimeout(()=>toast('🏆 Operation Glass Cage complete — well done, trainee.',4200),300);
+    }
+  };
+  window.Campaign=Campaign; Campaign.load();
+
+  /* subscribe story spine to tool events */
+  Bus.on('osint', ()=>Campaign.mark('osint'));
+  Bus.on('phish', ()=>Campaign.mark('phish'));
+  Bus.on('social',()=>Campaign.mark('social'));
+  Bus.on('wifi',  ()=>Campaign.mark('wifi'));
+  Bus.on('bluetooth',()=>Campaign.mark('bluetooth'));
+  Bus.on('report',()=>Campaign.mark('report'));
+
+  /* =====================================================================
+     OSINT — richer theHarvester that knows the story domain
+     ===================================================================== */
+  const HARVEST={
+    'northwind-trading.com':{
+      emails:['m.reed@northwind-trading.com','sales@northwind-trading.com','hr@northwind-trading.com','info@northwind-trading.com','careers@northwind-trading.com'],
+      hosts:['mail.northwind-trading.com','vpn.northwind-trading.com','www.northwind-trading.com','portal.northwind-trading.com'],
+      note:`<b>[!] Pivot:</b> m.reed@ reuses the handle <b>@${TARGET.handle}</b> — active on <b>${TARGET.site}</b>, Twitter and Strava. That’s your way to him personally.`
+    },
+    'infosectrain.com':{emails:['sales@infosectrain.com','info@infosectrain.com','support@infosectrain.com'],hosts:['dns.infosectrain.com','mail.infosectrain.com','www.infosectrain.com']},
+  };
+  async function theHarvester(a){
+    a=a||[];
+    const di=a.indexOf('-d'), bi=a.indexOf('-b');
+    const domain=di>=0?a[di+1]:(a.find(x=>x&&!x.startsWith('-'))||TARGET.domain);
+    const src=bi>=0?(a[bi+1]||'bing'):'bing,duckduckgo';
+    _T('*******************************************************************','dim');
+    _T('*  theHarvester 4.6.0  ·  OSINT e-mail &amp; subdomain gatherer     *','p');
+    _T('*******************************************************************','dim'); _T('');
+    _T('[*] Target domain: '+esc(domain),'b'); await nap(420);
+    for(const s of String(src).split(',')){ _T('[*] Searching '+s.trim()+' …','dim'); await nap(300); }
+    const rec=HARVEST[domain]||{
+      emails:['info@'+domain,'admin@'+domain,'contact@'+domain],
+      hosts:['www.'+domain,'mail.'+domain,'ns1.'+domain]
+    };
+    _T(''); _T('[*] Emails found: '+rec.emails.length,'g');
+    for(const e of rec.emails){ await nap(90); _T(e,'p'); }
+    _T(''); _T('[*] Hosts found: '+rec.hosts.length,'g');
+    for(const h of rec.hosts){ await nap(70); _T(h,'p'); }
+    if(rec.note){ _T(''); _T(rec.note.replace(/<b>/g,'<span class="o">').replace(/<\/b>/g,'</span>'),'y'); }
+    _T(''); _T('<span class="dim">Done — pure passive recon. No packet ever touched the target.</span>');
+    State.addSkill('OSINT: theHarvester');
+    if(domain===TARGET.domain) Bus.emit('osint');
+  }
+
+  /* =====================================================================
+     ZPHISHER — faithful, interactive, per-site (patched in place)
+     ===================================================================== */
+  const Z_SITES={1:'Facebook',2:'Instagram',3:'Google',4:'Microsoft',5:'Netflix',6:'PayPal',7:'Steam',8:'Twitter',9:'LinkedIn',10:'Snapchat',11:'GitHub',12:'Spotify'};
+  const zp = window.ZPHISH || (window.ZPHISH={});
+  Object.assign(zp,{
+    stage:null, site:'Instagram', tunnel:'Localhost', port:'8080', link:'', captured:false,
+    enter(){ Term.mode='zphisher'; this.captured=false; this.banner(); },
+    banner(){
+      _T('<span class="p">      ______      _     _     _               </span>');
+      _T('<span class="p">     |___  /     | |   (_)   | |              </span>');
+      _T('<span class="p">        / / _ __ | |__  _ ___| |__   ___ _ __ </span>');
+      _T('<span class="p">       / / | \'_ \\| \'_ \\| / __| \'_ \\ / _ \\ \'__|</span>');
+      _T('<span class="p">      / /__| |_) | | | | \\__ \\ | | |  __/ |   </span>');
+      _T('<span class="p">     /_____| .__/|_| |_|_|___/_| |_|\\___|_|   </span>');
+      _T('<span class="p">           | |          Version : 2.3.6        </span>');
+      _T('<span class="p">           |_|                                </span>'); _T('');
+      _T('<span class="dim">[-] Tool Created by htr-tech (tahmid.rayat)  ·  emulated in this lab</span>'); _T('');
+      _T('<span class="g">[::] Select An Attack For Your Victim [::]</span>'); _T('');
+      _T('[01] Facebook    <span class="g">[02] Instagram</span>   [03] Google      [04] Microsoft');
+      _T('[05] Netflix     [06] PayPal      [07] Steam       [08] Twitter');
+      _T('[09] LinkedIn    [10] Snapchat    [11] GitHub      [12] Spotify');
+      _T('   ...           [99] About       [00] Exit'); _T('');
+      _T('<span class="y">[-] Choose an option :</span> <span class="dim">(the target lives on Instagram — type 02)</span>');
+      this.stage='menu';
+    },
+    run(cmd){
+      cmd=(cmd||'').trim();
+      if(cmd==='00'){ this.end(); return; }
+      if(cmd==='99'){ _T('zphisher — an automated phishing tool. Clones a login page, tunnels it to a public URL, and logs whatever the victim submits. Here: fully emulated.','dim'); return; }
+      if(this.stage==='menu'){
+        const n=parseInt(cmd,10);
+        if(isNaN(n)||!Z_SITES[n]){ _T('[!] Invalid option. Type a number like 02.','r'); return; }
+        this.site=Z_SITES[n];
+        _T(''); _T('<span class="b">[-] Selected: '+this.site+'</span>'); _T('');
+        _T('<span class="g">[::] Select a Port Forwarding Service [::]</span>'); _T('');
+        _T('<span class="g">[01] Localhost</span>');
+        _T('[02] Cloudflared  <span class="dim">[Auto Detects]</span>');
+        _T('[03] LocalXpose   <span class="dim">[NEW! Max 15Min]</span>'); _T('');
+        _T('<span class="y">[-] Select a port forwarding option :</span> <span class="dim">(type 01 for Localhost)</span>');
+        this.stage='tunnel'; return;
+      }
+      if(this.stage==='tunnel'){
+        const n=parseInt(cmd,10);
+        this.tunnel = n===2?'Cloudflared' : n===3?'LocalXpose' : 'Localhost';
+        _T(''); _T('<span class="y">[?] Do you want a custom port? [y/N]:</span> <span class="dim">(press Enter / type N)</span>');
+        this.stage='port'; return;
+      }
+      if(this.stage==='port'){
+        if(/^y/i.test(cmd)){ _T('<span class="y">[-] Enter a custom port (1024-65535):</span>','y'); this.stage='portnum'; return; }
+        this.port='8080'; this._mask(); return;
+      }
+      if(this.stage==='portnum'){
+        const p=parseInt(cmd,10); this.port=(p>=1024&&p<=65535)?String(p):'8080'; this._mask(); return;
+      }
+      if(this.stage==='mask'){ this.customMask=(cmd&&!/^n$/i.test(cmd))?cmd:''; this._launch(); return; }
+      if(this.stage==='listen'){
+        const c=cmd.toLowerCase();
+        if(c==='open'||c==='login'){ this._openAccount(); return; }
+        _T('<span class="dim">[-] Still listening on '+this.link+' — submit the form in the browser, type <b>open</b> after a hit, or Ctrl+C to stop.</span>');
+        return;
+      }
+    },
+    _mask(){
+      _T(''); _T('[-] Using port : '+this.port,'dim');
+      _T('<span class="y">[-] You can put a custom mask URL (e.g. https://free-'+this.site.toLowerCase()+'-login.com):</span> <span class="dim">(press Enter to skip)</span>');
+      this.stage='mask';
+    },
+    async _launch(){
+      _T(''); _T('[-] Initializing … ','dim'); await nap(350);
+      _T('[-] Setting up the '+this.site+' login page …','dim'); await nap(350);
+      _T('[-] Starting PHP server on 127.0.0.1:'+this.port+' …','dim'); await nap(400);
+      let url;
+      if(this.tunnel==='Cloudflared'){ url='https://'+pick(['brave-otter','lucky-mint','red-sky','fuzzy-panda'])+'-'+rnd(10,99)+'.trycloudflare.com'; _T('[-] cloudflared tunnel established.','dim'); }
+      else if(this.tunnel==='LocalXpose'){ url='https://'+hexslug()+'.loclx.io'; _T('[-] LocalXpose tunnel established.','dim'); }
+      else { url='http://127.0.0.1:'+this.port; }
+      this.link=url;
+      _T(''); _T('<span class="g">[-] Successfully hosted the '+this.site+' page.</span>');
+      _T('<span class="g">[-] Send this link to the victim :</span>  <span class="o">'+esc(url)+'</span>');
+      if(this.customMask){ _T('<span class="g">[-] Masked URL :</span>  <span class="o">'+esc(this.customMask)+'@'+esc(url.replace(/^https?:\/\//,''))+'</span>'); }
+      _T(''); _T('<span class="y">[-] Waiting for login info, Ctrl+C to exit …</span>');
+      _T('<span class="dim">A browser window with the fake '+this.site+' page just opened — type a sample email + password and press the button to see what the attacker sees.</span>');
+      this.stage='listen';
+      window.__ZPHISH_LISTEN=this;
+      if(window.PhishPage&&PhishPage.open) PhishPage.open(this.site, url);
+    },
+    capture(email,pass){
+      this.captured=true;
+      _T(''); _T('<span class="p">[-] Victim IP found !</span>');
+      _T('<span class="b">[-] Victim\'s IP : '+pick(['203.0.113.','198.51.100.','192.0.2.'])+rnd(2,250)+'</span>');
+      _T('[-] Saved in : auth/ip.txt','dim'); _T('');
+      _T('<span class="g">[-] Login info found !!</span>');
+      _T('<span class="b">[-] Username : '+esc(email)+'</span>');
+      _T('<span class="r">[-] Password : '+esc(pass)+'</span>');
+      _T('[-] Saved in : auth/usernames.dat','dim'); _T('');
+      _T('<span class="g">[+] Account cracked. Type <b>open</b> to log into the '+this.site+' account, or Ctrl+C to stop.</span>');
+      State.addSkill('Phishing: zphisher credential capture', 20);
+      if(window.FS){ try{ FS.write&&FS.write('/home/kali/zphisher/auth/usernames.dat','Account: '+email+'\nPassword: '+pass+'\n'); }catch(e){} }
+      this._lastEmail=email; this._lastPass=pass;
+      Bus.emit('phish',{email:email});
+    },
+    _openAccount(){
+      _T('[-] Opening session in the browser …','dim');
+      if(window.SocialAccount&&SocialAccount.open) SocialAccount.open(this.site, this._lastEmail||TARGET.email);
+    },
+    end(){ this.stage=null; Term.mode='sh'; window.__ZPHISH_LISTEN=null; _T('[-] Exiting zphisher.','dim'); if(Term.lead){Term.lead.innerHTML=(typeof promptLead==='function')?promptLead():'└─$ ';} }
+  });
+  function hexslug(){ return Array.from({length:8},()=>'0123456789abcdef'[rnd(0,15)]).join(''); }
+
+  /* -------- per-site phishing page (patched in place) -------- */
+  const BRAND={
+    Instagram:{c:'#e1306c',logo:'<div style="font:700 30px \'Segoe Script\',cursive;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);-webkit-background-clip:text;background-clip:text;color:transparent">Instagram</div>',u:'Phone number, username, or email',btn:'Log in'},
+    Facebook:{c:'#1877f2',logo:'<div style="font:700 34px sans-serif;color:#1877f2">facebook</div>',u:'Email or phone number',btn:'Log In'},
+    Google:{c:'#4285f4',logo:'<div style="font:400 26px sans-serif"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div>',u:'Email or phone',btn:'Next'},
+    LinkedIn:{c:'#0a66c2',logo:'<div style="font:700 24px sans-serif;color:#0a66c2">Linked<span style="background:#0a66c2;color:#fff;padding:0 4px;border-radius:3px">in</span></div>',u:'Email or Phone',btn:'Sign in'},
+    Microsoft:{c:'#0067b8',logo:'<div style="font:600 22px sans-serif;color:#5e5e5e">&#9636; Microsoft</div>',u:'Email, phone, or Skype',btn:'Next'},
+    Netflix:{c:'#e50914',logo:'<div style="font:800 30px sans-serif;color:#e50914;letter-spacing:1px">NETFLIX</div>',u:'Email or phone number',btn:'Sign In'},
+    Twitter:{c:'#1d9bf0',logo:'<div style="font:800 30px sans-serif;color:#1d9bf0">&#120143;</div>',u:'Phone, email, or username',btn:'Log in'},
+    Snapchat:{c:'#000',logo:'<div style="font:800 26px sans-serif;color:#111;background:#fffc00;display:inline-block;padding:4px 10px;border-radius:8px">Snapchat 👻</div>',u:'Username or Email',btn:'Log In'},
+    PayPal:{c:'#003087',logo:'<div style="font:800 26px sans-serif"><span style="color:#003087">Pay</span><span style="color:#009cde">Pal</span></div>',u:'Email or mobile number',btn:'Log In'},
+    Steam:{c:'#1b2838',logo:'<div style="font:700 24px sans-serif;color:#c7d5e0">&#9881; STEAM</div>',u:'Sign in with account name',btn:'Sign in'},
+    GitHub:{c:'#24292f',logo:'<div style="font:700 24px sans-serif;color:#24292f">&#9679; GitHub</div>',u:'Username or email address',btn:'Sign in'},
+    Spotify:{c:'#1db954',logo:'<div style="font:800 24px sans-serif;color:#1db954">&#9834; Spotify</div>',u:'Email or username',btn:'Log In'}
+  };
+  const pp = window.PhishPage || (window.PhishPage={});
+  Object.assign(pp,{
+    site:'Instagram', url:'http://127.0.0.1:8080',
+    open(site,url){
+      this.site=site||'Instagram'; this.url=url||'http://127.0.0.1:8080';
+      const id='phish';
+      if(Windows[id]) closeWin(id);
+      openWindow({id,title:'Firefox — '+this.site+' · Log in',icon:(ICON.firefox||IMG.firefox||''),w:920,h:600,x:170,y:44,
+        mount:(b)=>this.mount(b), onClose:()=>{}});
+    },
+    mount(b){
+      const br=BRAND[this.site]||BRAND.Instagram;
+      const chrome = `<div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;background:#e9edf3;border-bottom:1px solid #d5dae2;color:#333;font:12px var(--mono)">
+        <span style="display:flex;gap:5px"><i style="width:9px;height:9px;border-radius:50%;background:#ff5f57"></i><i style="width:9px;height:9px;border-radius:50%;background:#febc2e"></i><i style="width:9px;height:9px;border-radius:50%;background:#28c840"></i></span>
+        <span style="flex:1;background:#fff;border:1px solid #cfd6e0;border-radius:12px;padding:3px 10px;color:#c0392b">&#9888; ${esc(this.url)}/login.php</span></div>`;
+      b.style.background='#fafafa';
+      b.innerHTML = chrome + `<div class="ph-wrap"><div class="ph-center">
+        <div class="ph-card">
+          <div style="text-align:center;margin-bottom:20px">${br.logo}</div>
+          <input class="ph-in" id="ph-user" placeholder="${esc(br.u)}">
+          <input class="ph-in" id="ph-pass" type="password" placeholder="Password">
+          <button class="ph-btn" id="ph-go" style="background:${br.c}">${esc(br.btn)}</button>
+          <div style="text-align:center;margin-top:14px;font-size:12px;color:#8a8a8a">Forgot password?</div>
+        </div>
+        <div style="margin-top:16px;font-size:11px;color:#c0392b;text-align:center;max-width:340px">⚠️ Emulated phishing page — the URL bar is a look-alike, not the real ${esc(this.site)}. Spotting that mismatch is the #1 defence you’ll teach.</div>
+      </div></div>`;
+      $('#ph-go',b).onclick=()=>{
+        const u=($('#ph-user',b)||{}).value||'', p=($('#ph-pass',b)||{}).value||'';
+        if(!u||!p){ toast('Type a sample email and password first'); return; }
+        toast('Captured — check the zphisher terminal');
+        const L=window.__ZPHISH_LISTEN;
+        if(L&&L.capture){ L.capture(u,p); if(Term.open)Term.open(); focusWin('terminal'); }
+        else { if(Term.open)Term.open(); _T('<span class="dim">[zphisher] captured '+esc(u)+' / '+esc(p)+' — (start the listener with '+'`zphisher`'+' to log it)</span>'); }
+      };
+    }
+  });
+
+  /* -------- breached social account (emulated) with story breadcrumbs -------- */
+  const SocialAccount={
+    open(site,email){
+      site=site||'Instagram';
+      openWindow({id:'social',title:'Firefox — '+site+' · @'+TARGET.handle,icon:(ICON.firefox||IMG.firefox||''),w:940,h:640,x:150,y:36,
+        mount:(b)=>this.mount(b,site,email), onClose:()=>{}});
+      Bus.emit('social');
+    },
+    mount(b,site,email){
+      const posts=[
+        {emo:'🔊',t:`New <b>${esc(TARGET.speaker)}</b> finally set up in the lounge — this thing is LOUD 🎶`},
+        {emo:'🏠',t:`WFH life. New router’s up, called it <b>${esc(TARGET.wifi)}</b> 😅 (yes I reused the old password)`,leak:true},
+        {emo:'☕',t:`Same corner cafe every morning before ${esc(TARGET.company)}. Creature of habit.`},
+        {emo:'🐕',t:`Weekend walks with Biscuit 🐾`},
+        {emo:'✈️',t:`Counting down to the Bali trip. Out of office soon!`,leak:true},
+        {emo:'🎂',t:`Turning the big 3-4 next week 🎉`},
+      ];
+      b.style.background='#0b0f18'; b.style.color='#dbe4f5';
+      b.innerHTML=`
+        <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;background:#e9edf3;color:#333;font:12px var(--mono);border-bottom:1px solid #d5dae2">
+          <span style="flex:1;background:#fff;border:1px solid #cfd6e0;border-radius:12px;padding:3px 10px;color:#1f9d6b">🔒 ${esc(site.toLowerCase())}.com/${esc(TARGET.handle)}  ·  logged in</span></div>
+        <div style="height:calc(100% - 34px);overflow:auto">
+          <div class="soc-top">
+            <div class="soc-av">${esc(TARGET.first[0])}</div>
+            <div>
+              <div style="font-size:19px;font-weight:700">@${esc(TARGET.handle)}</div>
+              <div style="color:#9fb0d0;font-size:13px">${esc(TARGET.name)} · ${esc(TARGET.role)} @ ${esc(TARGET.company)}</div>
+              <div style="color:#7f8db0;font-size:12px;margin-top:4px">${esc(TARGET.city)} · ${esc(email||TARGET.email)}</div>
+              <div style="margin-top:8px;font-size:12px;color:#c7d3ea"><b>247</b> posts &nbsp; <b>1,043</b> followers &nbsp; <b>388</b> following</div>
+            </div>
+          </div>
+          <div class="soc-grid">
+            ${posts.map(p=>`<div class="soc-post ${p.leak?'soc-leak':''}"><span class="emo">${p.emo}</span>${p.t}</div>`).join('')}
+          </div>
+          <div class="soc-dm">💬 <b>Direct messages</b> — “hey did you get that Northwind invoice?”, “gym at 6?”, “speaker’s too loud again lol”</div>
+          <div style="padding:14px 20px;border-top:1px solid #2a3247">
+            <div class="cmp-story" style="margin:0">🧠 <b>What just happened.</b> One phished password handed you his whole life. Two posts leak what you need next: his home Wi-Fi is <b>${esc(TARGET.wifi)}</b>, and he owns a <b>${esc(TARGET.speaker)}</b> Bluetooth speaker. That’s your pivot from his account to his network to the devices in his flat. <b>Lesson to pass on:</b> oversharing + reused passwords is how attackers chain one small leak into total access.</div>
+          </div>
+        </div>`;
+    }
+  };
+  window.SocialAccount=SocialAccount;
+
+  /* -------- simple engagement report window -------- */
+  const Report={
+    open(){
+      openWindow({id:'report',title:'Text Editor — engagement-report.md',icon:(typeof img==='function'?img('text-editor'):''),w:640,h:560,x:210,y:48,
+        mount:(b)=>{ b.innerHTML=`<div style="height:100%;overflow:auto;background:#0f141d;color:#dbe4f5;font:13px/1.6 var(--mono);padding:18px 22px">
+          <div style="color:#7de3ff;font-weight:700;font-size:15px">Penetration Test Report — ${esc(TARGET.company)}</div>
+          <div style="color:#6b7488;margin-bottom:14px">Prepared for ${esc(TARGET.name)} · authorised engagement · ${esc(new Date().toISOString().slice(0,10))}</div>
+          <b style="color:#ffb454">Findings &amp; fixes</b>
+          <ol style="margin:8px 0 0;padding-left:20px;line-height:1.9">
+            <li><b>Public data exposure (OSINT).</b> Work email + reused handle let us link the person across services.<br><span style="color:#8ff0b4">Fix: minimise public footprint; separate personal/work identities.</span></li>
+            <li><b>Phishing / credential theft.</b> A look-alike login captured a valid password.<br><span style="color:#8ff0b4">Fix: phishing-resistant MFA (passkeys/FIDO2); train staff to check the URL bar.</span></li>
+            <li><b>Account takeover &amp; oversharing.</b> Posts leaked the home SSID and devices.<br><span style="color:#8ff0b4">Fix: private profiles; never post network names or travel plans.</span></li>
+            <li><b>Weak Wi-Fi passphrase.</b> ${esc(TARGET.wifi)} used a dictionary word, cracked offline in seconds.<br><span style="color:#8ff0b4">Fix: long random passphrase or WPA3-SAE, which resists offline cracking.</span></li>
+            <li><b>Bluetooth denial-of-service.</b> Unauthenticated L2CAP flood dropped the speaker’s audio.<br><span style="color:#8ff0b4">Fix: keep firmware updated; disable discoverable/pairing when idle.</span></li>
+          </ol>
+          <div style="margin-top:16px;color:#c7d3ea">Breaking in was the easy part. This report is the actual job — it turns an attack into a defence, and it’s what keeps real people safe.</div>
+          <button class="btn pri sm" id="rep-sign" style="margin-top:16px">✅ Sign &amp; close out engagement</button>
+        </div>`;
+        const s=$('#rep-sign',b); if(s)s.onclick=()=>{ Bus.emit('report'); toast('📝 Report signed — engagement closed. Well done.'); };
+      }});
+    }
+  };
+  window.Report=Report;
+
+  /* =====================================================================
+     wire success events from existing tools (wrap, don't rewrite)
+     ===================================================================== */
+  if(typeof CMD!=='undefined'){
+    const _air=CMD['aircrack-ng'];
+    if(_air) CMD['aircrack-ng']=async function(){ const r=await _air.apply(this,arguments); if(ENV.handshake) Bus.emit('wifi'); return r; };
+    const _l2=CMD['l2ping'];
+    if(_l2) CMD['l2ping']=function(){ const r=_l2.apply(this,arguments); if(ENV.bt&&ENV.bt.flooded) Bus.emit('bluetooth'); return r; };
+  }
+  if(typeof Fern!=='undefined'&&Fern.attack){
+    const _fa=Fern.attack.bind(Fern);
+    Fern.attack=async function(){ const before=ENV.handshake; await _fa(); const ap=this.sel; if(ap&&ap.target&&ap.crackable) Bus.emit('wifi'); };
+  }
+  if(typeof Mission!=='undefined'&&Mission.complete){
+    const _mc=Mission.complete.bind(Mission);
+    Mission.complete=function(key,stepId){ _mc(key,stepId); if(stepId==='bt') Bus.emit('bluetooth'); };
+  }
+  if(typeof SpiderFoot!=='undefined'&&SpiderFoot.run){
+    const _sr=SpiderFoot.run.bind(SpiderFoot);
+    SpiderFoot.run=function(){ const r=_sr(); Bus.emit('osint'); return r; };
+  }
+
+  /* =====================================================================
+     openTool router additions (chain onto the existing override)
+     ===================================================================== */
+  const _openTool=window.openTool;
+  window.openTool=function(name){
+    if(name==='__campaign') return Campaign.open();
+    if(name==='__report')   return Report.open();
+    if(name==='__social')   return SocialAccount.open(TARGET.site, TARGET.email);
+    if(name==='theharvester'){ if(Term.open)Term.open(); focusWin('terminal'); return theHarvester(['-d',TARGET.domain,'-b','bing,duckduckgo']); }
+    if(name==='zphisher'){ if(Term.open)Term.open(); focusWin('terminal'); setTimeout(()=>{ if(Term.mode!=='zphisher') zp.enter(); },120); return; }
+    if(name==='browser') Bus.emit('osint');    // opening the OSINT browser counts as recon
+    return _openTool.apply(this,arguments);
+  };
+  // keep CMD.theHarvester pointing at the richer version
+  if(typeof CMD!=='undefined'){ CMD.theHarvester=theHarvester; CMD.theharvester=theHarvester; CMD.zphisher=function(){ zp.enter(); }; }
+
+  /* =====================================================================
+     GUIDED TRAINING  ·  story rewrite (reassign Tutorial.build + event gates)
+     ===================================================================== */
+  if(typeof Tutorial!=='undefined'){
+    const TT=()=>Windows.terminal&&Windows.terminal.el;
+    const VV=()=>Windows.victim&&Windows.victim.el;
+    Tutorial.build=function(){
+      this.steps=[
+        {phase:'Operation Glass Cage', title:'Your first real engagement', center:true, open:()=>Campaign.open(),
+          body:`You’re a <b>junior penetration tester</b>. A client has signed a contract asking your firm to break in <i>on purpose</i> and prove where they’re weak. Your mark is <b>${esc(TARGET.name)}</b> — ${esc(TARGET.role)} at ${esc(TARGET.company)}. Start from nothing but his name and end up silencing the speaker in his living room — then hand him the report. Your <b>Objectives</b> panel (left) tracks the whole operation. Everything is simulated; relax and explore.`},
+        {phase:'The golden rule', title:'What separates a pro from a criminal', center:true,
+          body:`These are the <i>exact</i> tools criminals use. The only difference is <b>permission</b>. A professional only ever touches a system they have <b>written authorisation</b> to test. Same keystrokes — one path is a career, the other a prison cell. Keep that line sacred.`},
+
+        {phase:'① Recon', title:'Gather information first', target:TT, open:()=>Term.open(),
+          body:`Beginners attack; professionals <b>gather information</b> — <b>reconnaissance</b>. It’s <i>passive</i> here: we read only public data, so the target never even knows. <b>theHarvester</b> sweeps search engines for a company’s emails and subdomains. Let’s point it at his employer.`,
+          cmd:`theHarvester -d ${TARGET.domain} -b bing`, match:/theharvester/i, obj:'osint',
+          interp:`There he is: <b>${esc(TARGET.email)}</b>, and he reuses the handle <b>@${esc(TARGET.handle)}</b> on ${esc(TARGET.site)}. You didn’t hack anything — you just <i>read</i>. That’s the quiet power of OSINT, and objective ① just ticked over.`},
+
+        {phase:'② Social engineering', title:'Clone his login and wait', target:TT,
+          open:()=>{ Term.open(); setTimeout(()=>{ if(Term.input){Term.input.value='zphisher';Term.input.focus();} },200); },
+          body:`Now we go after <b>${esc(TARGET.first)}</b> personally. <b>zphisher</b> builds a pixel-perfect copy of a ${esc(TARGET.site)} login, gives you a link to send him, and logs whatever he types.<br><br>Run <code>zphisher</code>, then: pick <b>02</b> (Instagram) → <b>01</b> (Localhost) → <b>N</b> (no custom port) → <b>Enter</b> (skip mask). A fake page opens — type a sample email + password and press <b>Log in</b> to see what the attacker captures.`,
+          event:'phish',
+          interp:`His password landed in your terminal in plain text. That’s <b>phishing</b>: no firewall stops a user from typing their password into the wrong box. Objective ② cleared. The defence you’ll teach: <b>check the URL bar</b>, and use phishing-resistant MFA.`},
+
+        {phase:'③ Account takeover', title:'People leak more than scanners do', target:TT,
+          body:`One password, his whole digital life. In the zphisher terminal, type <code>open</code> to log into the breached account and read his posts — attackers mine profiles for the next clue.`,
+          event:'social',
+          interp:`Gold. His posts leak his home Wi-Fi name <b>${esc(TARGET.wifi)}</b> and a new <b>${esc(TARGET.speaker)}</b> speaker. You’ve pivoted from his account to his <i>network</i>. Objective ③ done.`},
+
+        {phase:'④ Get inside the walls', title:'From his account to his Wi-Fi', center:true,
+          body:`You know the network now: <b>${esc(TARGET.wifi)}</b>. Crack that and you’re sitting on the same LAN as every device in his flat. Wi-Fi cracking is a four-move combo — listen, watch, kick, crack. Let’s do it at the command line so you truly understand it.`},
+        {phase:'④ Wi-Fi', title:'Turn your card into a listener', target:TT,
+          body:`Normally your card only hears traffic meant for you. <b>Monitor mode</b> makes it hear <i>everything</i> in the air. This flips <code>wlan0</code> into a silent listener, <code>wlan0mon</code>.`,
+          cmd:'airmon-ng start wlan0', match:/airmon-ng\s+start/i,
+          interp:`You’re now eavesdropping on the raw airwaves — and you still haven’t touched the target. Patience is the attacker’s real weapon.`},
+        {phase:'④ Wi-Fi', title:'See the airwaves', target:TT,
+          body:`<b>airodump-ng</b> lists nearby networks and the devices on each. To crack the password we need a <b>handshake</b> — the encrypted “greeting” a device and router swap the moment it joins.`,
+          cmd:'airodump-ng wlan0mon', match:/airodump-ng/i,
+          interp:`There’s <b>${esc(TARGET.wifi)}</b> with a client already connected. Snag: the handshake only happens on <i>join</i>, and this device joined hours ago. So we force a rejoin.`},
+        {phase:'④ Wi-Fi', title:'The clever move: kick him off', open:()=>Victim.ensure(), target:VV,
+          body:`We send <b>deauthentication</b> frames that knock his device off the Wi-Fi. It panics and <b>auto-reconnects</b> — and in that instant it performs the handshake, which we grab. <b>Watch the Victim Screen</b> drop and reconnect.`,
+          cmd:'aireplay-ng --deauth 10 -a AA:BB:CC:11:22:33 -c DE:AD:BE:EF:42:42 wlan0mon', match:/aireplay-ng/i,
+          interp:`Saw it drop and come back? In that split second we captured the encrypted handshake. We hold the locked box — now we pick the lock.`},
+        {phase:'④ Wi-Fi', title:'Guess a million passwords a second', target:TT,
+          body:`We can’t read the password out of the handshake, so we run a <b>dictionary attack</b>: <b>aircrack-ng</b> tries millions of real leaked passwords (<code>rockyou.txt</code>) until one fits.`,
+          cmd:'aircrack-ng -w /usr/share/wordlists/rockyou.txt HomeNet-01.cap', match:/aircrack-ng/i, obj:'wifi',
+          interp:`<b>KEY FOUND: sunshine2024.</b> A memorable word fell in seconds because it was already in the leak lists. Objective ④ cleared — you’re on his network. <b>The #1 lesson to pass on:</b> weak, reused passwords are why networks fall.`},
+
+        {phase:'⑤ Impact', title:'Reach out and touch a device', target:()=>Windows.bluetooth&&Windows.bluetooth.el,
+          open:()=>{ if(typeof Bluetooth!=='undefined')Bluetooth.open(); Term.open(); setTimeout(()=>{ if(Term.input){Term.input.value='l2ping -f '+TARGET.speakerMac;Term.input.focus();} },220); },
+          body:`Inside his network you’re in Bluetooth range too. His <b>${esc(TARGET.speaker)}</b> answers Bluetooth “are-you-there?” pings — flood it and its audio link starves and drops.<br><br>Run <code>l2ping -f ${TARGET.speakerMac}</code> in the terminal (already typed), or use the <b>Bluetooth Manager</b> → Scan → pick the speaker → run the flood.`,
+          event:'bluetooth',
+          interp:`Silence. The speaker dropped off the stream. Objective ⑤ done. The defence: keep firmware patched (modern stacks rate-limit these pings) and don’t leave devices discoverable.`},
+
+        {phase:'⑥ The real job', title:'Turn the attack into a defence', center:true, open:()=>Report.open(),
+          body:`A criminal would vanish with the loot. A <b>professional</b> does the opposite: document <i>exactly</i> how you got in so the client can fix every hole. Read the <b>report</b> that just opened, then <b>Sign &amp; close out</b> the engagement to finish the operation.`,
+          event:'report',
+          interp:`Signed. That report is the whole point — it converts your break-in into protection for a real person.`},
+
+        {phase:'Graduation', title:'You just did what the pros do', center:true,
+          body:`Look at the arc: <b>Recon → Phish → Takeover → Wi-Fi → Impact → Report</b>. That chain <i>is</i> the attacker’s playbook, and now you understand the <i>why</i> behind each move. Keep practising in the sandbox, stay authorised, and you’re genuinely on the road to cybersecurity pro. The lab is yours — go explore.`}
+      ];
+    };
+
+    /* event-gated advancement */
+    Tutorial.eventDone=Tutorial.eventDone||{};
+    Tutorial.notify=function(ev){
+      if(!this.active)return;
+      const s=this.steps[this.i]; if(!s||s.event!==ev)return;
+      this.eventDone[this.i]=true; this.awaitEvent=null;
+      const interp=$('#tutInterp'), next=$('#tutNext'), sp=$('.tut-nav .sp');
+      if(interp&&s.interp){ interp.style.display='block'; interp.innerHTML=s.interp; }
+      if(next){ next.disabled=false; next.classList.add('pulse'); setTimeout(()=>next.classList.remove('pulse'),1600); }
+      if(sp)sp.textContent='';
+      toast('✓ Objective step complete');
+      setTimeout(()=>this.position(this.steps[this.i]),60);
+    };
+    // mark campaign objective when a practice command with .obj is run
+    const _onCmd=Tutorial.onCommand.bind(Tutorial);
+    Tutorial.onCommand=function(cmd){
+      const s=this.steps[this.i];
+      _onCmd(cmd);
+      if(this.active&&s&&s.obj&&s.match&&s.match.test(cmd)){ setTimeout(()=>Campaign.mark(s.obj),300); }
+    };
+    // wrap go() to install event gates + prefill
+    const _go=Tutorial.go.bind(Tutorial);
+    Tutorial.go=function(n){
+      _go(n);
+      const s=this.steps[this.i]; if(!s)return;
+      const next=$('#tutNext'), sp=$('.tut-nav .sp'), interp=$('#tutInterp');
+      if(s.event){
+        if(this.eventDone[this.i]){ this.awaitEvent=null; if(next)next.disabled=false; if(interp&&s.interp){interp.style.display='block';interp.innerHTML=s.interp;} if(sp)sp.textContent=''; }
+        else { this.awaitEvent=s.event; if(next)next.disabled=true; if(interp)interp.style.display='none';
+          if(sp)sp.innerHTML='<span class="tut-wait">↑ do it in the tool to continue</span>'; }
+      }
+    };
+    const _start=Tutorial.start.bind(Tutorial);
+    Tutorial.start=function(){ this.eventDone={}; Campaign.open(); _start(); };
+  }
+
+  /* =====================================================================
+     MANY MORE WORKING CLI COMMANDS  (added to CMD; existing ones untouched)
+     ===================================================================== */
+  if(typeof CMD!=='undefined'){
+    const T=(h,c)=>Term.print(h,c);
+    const OK=()=>{};                                  // silent success (real shells print nothing)
+    const arg=(a)=>a.find(x=>x&&!x.startsWith('-'))||'';
+    const internetHop=(host)=>['10.10.14.1','192.168.86.1','172.16.0.1','203.0.113.1','142.250.70.'+rnd(1,254)];
+
+    async function traceroute(a){
+      const host=arg(a)||'8.8.8.8';
+      const known=ENV.hosts.find(h=>h.ip===host||h.name===host);
+      T('traceroute to '+esc(host)+' ('+esc(known?known.ip:host)+'), 30 hops max, 60 byte packets');
+      const path = known ? ['10.10.14.1'] : internetHop(host).slice(0, rnd(4,6));
+      if(known) path.push(known.ip);
+      for(let i=0;i<path.length;i++){ await sleep(220);
+        const t=()=>(rnd(1,4)+i*rnd(2,9)+Math.random()).toFixed(3);
+        T(String(i+1).padStart(2)+'  '+path[i].padEnd(16)+t()+' ms  '+t()+' ms  '+t()+' ms');
+      }
+      State.addSkill('traceroute path discovery');
+    }
+
+    const add={
+      /* --- networking --- */
+      traceroute, tracert:traceroute, tracepath:traceroute,
+      dig(a){ const d=arg(a)||'example.com'; T('; <<>> DiG 9.18 <<>> '+esc(d),'dim'); T(';; ANSWER SECTION:'); T(esc(d)+'.\t300\tIN\tA\t93.184.216.'+rnd(1,254),'g'); T(';; Query time: '+rnd(2,40)+' msec','dim'); },
+      nslookup(a){ const d=arg(a)||'example.com'; T('Server:\t\t10.10.14.1'); T('Address:\t10.10.14.1#53'); T(''); T('Non-authoritative answer:'); T('Name:\t'+esc(d)); T('Address: 93.184.216.'+rnd(1,254),'g'); },
+      host(a){ const d=arg(a)||'example.com'; T(esc(d)+' has address 93.184.216.'+rnd(1,254),'g'); T(esc(d)+' mail is handled by 10 mail.'+esc(d)+'.'); },
+      netstat(a){ T('Active Internet connections (w/o servers)'); T('Proto Recv-Q Send-Q Local Address           Foreign Address         State'); T('tcp        0      0 10.10.14.5:22           10.10.14.1:51820        ESTABLISHED','g'); T('tcp        0      0 10.10.14.5:44012        10.10.14.20:443         ESTABLISHED','g'); T('tcp6       0      0 :::80                   :::*                    LISTEN'); },
+      ss(a){ return add.netstat(a); },
+      route(a){ T('Kernel IP routing table'); T('Destination     Gateway         Genmask         Flags Metric Ref    Use Iface'); T('default         10.10.14.1      0.0.0.0         UG    100    0        0 eth0'); T('10.10.14.0      0.0.0.0         255.255.255.0   U     0      0        0 eth0'); },
+      arp(a){ T('Address                  HWtype  HWaddress           Flags Mask            Iface'); ENV.hosts.slice(0,3).forEach(h=>T(h.ip.padEnd(24)+'ether   '+hex()+'   C                     eth0')); },
+      async wget(a){ const u=arg(a)||''; if(!u){T('wget: missing URL','r');return;} T('--'+new Date().toISOString().slice(11,19)+'--  '+esc(u),'dim'); await sleep(400); T('Resolving host… connected.','dim'); T('HTTP request sent, awaiting response… 200 OK'); T('Length: '+rnd(1200,90000)+' (','dim'); T("'index.html' saved [ok]",'g'); },
+      curlalt(){},
+      ssh(a){ const t=a.find(x=>x.includes('@'))||arg(a)||'10.10.14.20'; T('The authenticity of host \''+esc(t)+'\' can\'t be established.','dim'); T('ED25519 key fingerprint is SHA256:'+hexslug()+hexslug()+'.','dim'); T("Are you sure you want to continue connecting (yes/no)? yes",'dim'); T(esc(t)+"'s password: ",'dim'); T('Permission denied (publickey,password). — scripted lab: use hydra/metasploit to get creds first.','r'); },
+      scp(a){ T('scp: scripted — file transfer emulated. Use it after you have credentials.','dim'); },
+      nc(a){ T('nc: scripted netcat. Listening/sending is emulated only in this lab.','dim'); },
+      ncat(a){ return add.nc(a); },
+      ftp(a){ T('Connected to '+ (arg(a)||'10.10.14.20')+'.'); T('220 (vsFTPd 3.0.3)'); T('Name: anonymous  →  230 Login successful.','g'); T('ftp> (scripted)','dim'); },
+      ping6(a){ return CMD.ping(a); },
+
+      /* --- files / text --- */
+      mkdir:OK, rmdir:OK, touch:OK, rm:OK, cp:OK, mv:OK, chmod:OK, chown:OK, chgrp:OK, ln:OK,
+      grep(a){ const p=a[0]||''; T('<span class="dim">(scripted grep for </span>'+esc(p)+'<span class="dim">)</span> — try piping a real file, e.g. cat notes.md'); },
+      wc(a){ T('  '+rnd(3,40)+'  '+rnd(20,300)+'  '+rnd(200,4000)+' '+(arg(a)||'file')); },
+      head(a){ return CMD.cat?CMD.cat(a):T('(head)'); },
+      tail(a){ return CMD.cat?CMD.cat(a):T('(tail)'); },
+      more(a){ return CMD.cat?CMD.cat(a):T('(more)'); },
+      less(a){ return CMD.cat?CMD.cat(a):T('(less)'); },
+      sort(a){ T('(scripted sort)','dim'); },
+      uniq(a){ T('(scripted uniq)','dim'); },
+      find(a){ const p=a.find(x=>x&&x!=='.'&&x!=='/'&&!x.startsWith('-'))||''; ['./Desktop','./Documents','./Downloads/handshake.cap','./hashes.txt','./notes.md','./loot.txt','./zphisher/zphisher.sh'].forEach(f=>{ if(!p||f.includes(p))T(f); }); },
+      locate(a){ const p=arg(a)||'rockyou'; if(/rockyou/.test(p)){T('/usr/share/wordlists/rockyou.txt');T('/usr/share/wordlists/rockyou.txt.gz');} else T('/usr/bin/'+p+'\n/usr/share/'+p); },
+      which(a){ const p=arg(a)||'nmap'; T('/usr/bin/'+p); },
+      whereis(a){ const p=arg(a)||'nmap'; T(p+': /usr/bin/'+p+' /usr/share/'+p); },
+      type(a){ const p=arg(a)||'ls'; T(p+' is /usr/bin/'+p); },
+      file(a){ const f=arg(a)||'handshake.cap'; T(esc(f)+': '+(/\.cap$/.test(f)?'pcap capture file':/\.txt$/.test(f)?'ASCII text':'data')); },
+      stat(a){ const f=arg(a)||'notes.md'; T('  File: '+esc(f)); T('  Size: '+rnd(200,8000)+'\tBlocks: 8\tIO Block: 4096   regular file'); T('Access: (0644/-rw-r--r--)  Uid: (1000/kali)   Gid: (1000/kali)'); },
+      md5sum(a){ T(hexslug()+hexslug()+hexslug()+hexslug()+'  '+(arg(a)||'file')); },
+      sha256sum(a){ T(hexslug()+hexslug()+hexslug()+hexslug()+hexslug()+hexslug()+hexslug()+hexslug()+'  '+(arg(a)||'file')); },
+      base64(a){ T('c2NyaXB0ZWQgbGFiIG91dHB1dA=='); },
+      strings(a){ T('/lib64/ld-linux-x86-64.so.2'); T('GLIBC_2.2.5'); T('Usage: %s [options]'); },
+      tree(a){ T('.'); T('├── Desktop'); T('├── Documents'); T('├── Downloads'); T('│   └── handshake.cap'); T('├── hashes.txt'); T('├── notes.md'); T('└── zphisher'); T('    └── zphisher.sh'); T(''); T('3 directories, 4 files','dim'); },
+
+      /* --- system / process --- */
+      ps(a){ T('  PID TTY          TIME CMD'); ['bash','ps','NetworkManager','wpa_supplicant','sshd','Xorg','xfce4-session'].forEach((c,i)=>T(String(1000+i*37).padStart(5)+' pts/0    00:00:0'+rnd(0,9)+' '+c)); },
+      top(a){ T('top - '+nowClock()+' up '+rnd(1,8)+':'+String(rnd(0,59)).padStart(2,'0')+',  1 user,  load average: 0.'+rnd(10,90)+', 0.'+rnd(10,60)+', 0.'+rnd(5,40)); T('Tasks: '+rnd(120,220)+' total,   1 running','dim'); T('%Cpu(s):  '+rnd(1,20)+'.0 us,  '+rnd(1,8)+'.0 sy','dim'); T('MiB Mem :   7943.0 total,   '+rnd(2000,5000)+'.0 free','dim'); T('<span class="dim">(press q — scripted snapshot)</span>'); },
+      htop(a){ return add.top(a); },
+      kill:OK, killall:OK, pkill:OK,
+      uptime(){ T(' '+nowClock()+'  up '+rnd(1,9)+' hours, '+rnd(1,5)+' users,  load average: 0.'+rnd(10,80)+', 0.'+rnd(10,50)+', 0.'+rnd(5,30)); },
+      w(){ T(' '+nowClock()+' up  '+rnd(1,9)+':'+String(rnd(0,59)).padStart(2,'0')+',  1 user'); T('USER     TTY      FROM             LOGIN@   IDLE   WHAT'); T('kali     :0       :0               08:12   ?xdm?   xfce4-session'); },
+      who(){ T('kali     :0           '+fullDate()+' '+nowClock()+' (:0)'); },
+      last(){ T('kali     :0           :0               '+fullDate()+' '+nowClock()+'   still logged in'); T('reboot   system boot  6.11.2-amd64     '+fullDate(),'dim'); },
+      free(a){ T('               total        used        free      shared  buff/cache   available'); T('Mem:         8134628     '+rnd(2000000,4000000)+'     '+rnd(1500000,3000000)+'      412000     2100000     '+rnd(3000000,5000000)); T('Swap:        2097148           0     2097148'); },
+      df(a){ T('Filesystem     1K-blocks      Used Available Use% Mounted on'); T('/dev/sda1       81120944  '+rnd(20000000,40000000)+'  '+rnd(30000000,50000000)+'  '+rnd(40,70)+'% /'); T('tmpfs            4067312         0   4067312   0% /dev/shm'); },
+      du(a){ T(rnd(4,900)+'K\t'+(arg(a)||'.')); },
+      lsblk(){ T('NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS'); T('sda      8:0    0   80G  0 disk'); T('├─sda1   8:1    0 78.5G  0 part /'); T('└─sda2   8:2    0  1.9G  0 part [SWAP]'); },
+      lscpu(){ T('Architecture:            x86_64'); T('CPU(s):                  4'); T('Model name:              Intel(R) Core(TM) i5-8250U CPU @ 1.60GHz'); T('Virtualization:          VT-x'); },
+      lsusb(){ T('Bus 001 Device 002: ID 148f:9271 Ralink Technology RT2870/RT3070 (Atheros AR9271 802.11n)'); T('Bus 001 Device 003: ID 0a12:0001 Cambridge Silicon Radio Bluetooth dongle'); T('Bus 002 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub'); },
+      lspci(){ T('00:02.0 VGA compatible controller: Intel UHD Graphics 620'); T('02:00.0 Network controller: Qualcomm Atheros AR9271'); },
+      lsof(){ T('COMMAND   PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME'); T('wpa_suppl 640 root    3u  IPv4  18422      0t0  UDP *:bootpc'); },
+      dmesg(){ T('[    0.000000] Linux version 6.11.2-amd64','dim'); T('[    2.113400] iwlwifi 0000:02:00.0: loaded firmware','dim'); T('[   14.882010] wlan0: authenticated','dim'); },
+      mount(){ T('/dev/sda1 on / type ext4 (rw,relatime)'); T('proc on /proc type proc (rw,nosuid,nodev,noexec,relatime)'); T('tmpfs on /run type tmpfs (rw,nosuid,nodev)'); },
+      umount:OK,
+      systemctl(a){ if(a[0]==='status'){ T('● '+(a[1]||'ssh')+'.service — OpenBSD Secure Shell server'); T('   Loaded: loaded (/lib/systemd/system/ssh.service; enabled)'); T('   Active: <span class="g">active (running)</span>'); return; } T('(scripted) systemctl '+a.join(' '),'dim'); },
+      service(a){ T(' * '+(a[0]||'ssh')+' is running','g'); },
+      journalctl(){ T('-- Logs begin --','dim'); T(fullDate()+' '+nowClock()+' kali sshd[640]: Server listening on 0.0.0.0 port 22.','dim'); },
+      neofetch(){ [
+        '<span class="b">      ..............     </span>  <span class="g">kali@kali</span>',
+        '<span class="b">            ..,;:ccc,.   </span>  -----------',
+        '<span class="b">          ......\'\'\';lxO. </span>  <span class="b">OS:</span> Kali GNU/Linux Rolling x86_64',
+        '<span class="b">.....\'\'\'\'..........,:ld</span>  <span class="b">Kernel:</span> 6.11.2-amd64',
+        '<span class="b">.\';;;:::;,,.x,       </span>  <span class="b">Shell:</span> bash 5.2.15',
+        '<span class="b">...\'\'\'\'\'\'\'\'\'\'  0Xxoc:,. </span>  <span class="b">DE:</span> Xfce 4.18',
+        '<span class="b">        \'\'.....,ldl.    </span>  <span class="b">CPU:</span> i5-8250U (4)',
+        '<span class="b">          .\':::;.       </span>  <span class="b">Memory:</span> '+rnd(1800,3200)+'MiB / 7943MiB'
+      ].forEach(l=>T(l)); },
+      fastfetch(){ return add.neofetch(); },
+      screenfetch(){ return add.neofetch(); },
+      cowsay(a){ const m=a.join(' ')||'Hack the planet — with permission.'; const line='_'.repeat(m.length+2); T(' '+line); T('< '+esc(m)+' >'); T(' '+'-'.repeat(m.length+2)); T('        \\   ^__^'); T('         \\  (oo)\\_______'); T('            (__)\\       )\\/\\'); T('                ||----w |'); T('                ||     ||'); },
+      figlet(a){ T((a.join(' ')||'KALI').toUpperCase().split('').join(' '),'g'); },
+      banner(a){ return add.figlet(a); },
+      fortune(){ T(pick(['The quieter you become, the more you are able to hear.','Reconnaissance is 90% of the work.','A patient attacker beats a fast one.','The best exploit is a reused password.'])); },
+      cal(){ const d=new Date(); T('    '+d.toLocaleString('en',{month:'long'})+' '+d.getFullYear()); T('Su Mo Tu We Th Fr Sa'); T('(scripted calendar)','dim'); },
+      cmatrix(){ T('(the Matrix rains… press Ctrl+C — scripted)','g'); },
+
+      /* --- package / shell --- */
+      apt(a){ if(a[0]==='update'){ T('Hit:1 http://kali.download/kali kali-rolling InRelease'); T('Reading package lists... Done','g'); return; } if(a[0]==='install'){ T('Reading package lists... Done'); T('Building dependency tree... Done'); T(esc(a.slice(1).join(' '))+' is already the newest version.','g'); return; } T('apt '+a.join(' ')+' (scripted)','dim'); },
+      'apt-get'(a){ return add.apt(a); },
+      dpkg(a){ if(a[0]==='-l'){ T('ii  aircrack-ng   1.7-1   amd64   WEP/WPA/WPA2 cracking'); T('ii  nmap          7.94-1  amd64   port scanner'); return; } T('dpkg '+a.join(' '),'dim'); },
+      pip(a){ T('Requirement already satisfied.','dim'); },
+      pip3(a){ return add.pip(a); },
+      python(){ T('Python 3.11.9 (scripted) — interactive REPL not available in this lab. Run scripts instead.','dim'); },
+      python3(){ return add.python(); },
+      node(){ T('Node not exposed in this scripted shell.','dim'); },
+      env(){ ['SHELL=/bin/bash','USER=kali','HOME=/home/kali','PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin','LANG=en_US.UTF-8','TERM=xterm-256color'].forEach(l=>T(l)); },
+      printenv(a){ if(arg(a)){ const m={USER:'kali',HOME:'/home/kali',SHELL:'/bin/bash',PATH:'/usr/bin:/bin'}; T(m[arg(a)]||''); return; } return add.env(); },
+      export:OK, alias(a){ if(!a.length){ T("alias ll='ls -alF'"); T("alias la='ls -A'"); } else OK(); }, unalias:OK, source:OK, set:OK,
+      su(a){ T('Password: ','dim'); T('root@kali:~# (scripted — you already have sudo)','dim'); },
+      passwd(){ T('Changing password for kali.'); T('Current password: ','dim'); T('(scripted — password unchanged)','dim'); },
+      groups(){ T('kali sudo'); },
+      tty(){ T('/dev/pts/0'); },
+      reset(){ if(Term.scroll)Term.scroll.innerHTML=''; },
+      sleep:OK,
+      watch(a){ T('Every 2.0s: '+a.join(' '),'dim'); if(CMD[a[0]])return CMD[a[0]](a.slice(1)); },
+      vi(a){ return openEditor(a); }, vim(a){ return openEditor(a); }, nano(a){ return openEditor(a); },
+    };
+    function openEditor(a){ if(typeof TextEd!=='undefined'&&TextEd.open){ TextEd.open(); T('[opened '+(arg(a)||'file')+' in the editor]','dim'); } else T('(editor)','dim'); }
+
+    // richer `ip` (keep addr→ifconfig behaviour, add route/link/neigh)
+    add.ip=function(a){
+      const sub=a[0];
+      if(sub==='a'||sub==='addr'||sub===undefined) return CMD.ifconfig();
+      if(sub==='r'||sub==='route') return add.route(a);
+      if(sub==='n'||sub==='neigh') return add.arp(a);
+      if(sub==='l'||sub==='link'){ T('1: lo: <LOOPBACK,UP> mtu 65536'); T('2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500'); T('    link/ether 00:0c:29:3a:1b:7f'); T('3: '+ENV.iface+(ENV.monitor?'mon':'')+': <BROADCAST,MULTICAST> mtu 1500'); T('    link/ether 00:c0:ca:97:2b:44'); return; }
+      T('Usage: ip [ a | r | l | n ]','dim');
+    };
+
+    // only add names that don't already exist (protect the originals)
+    Object.keys(add).forEach(k=>{ if(!(k in CMD)) CMD[k]=add[k]; });
+    CMD.ip=add.ip;                                    // safe upgrade of ip
+  }
+
+  /* =====================================================================
+     TERMINAL TAB-AUTOCOMPLETE  (Term.complete, called from Term.bind)
+     ===================================================================== */
+  if(typeof Term!=='undefined'){
+    const FILES=['hashes.txt','notes.md','loot.txt','handshake.cap','scan.sh','zphisher.sh',
+      '/usr/share/wordlists/rockyou.txt','HomeNet-01.cap','wlan0mon','wlan0','10.10.14.42','10.10.14.20'];
+    Term.complete=function(){
+      const inp=this.input; if(!inp||this.mode==='zphisher')return;
+      const val=inp.value; const upTo=val;   // complete the last token of the whole line (caret-independent)
+      const parts=upTo.split(/\s+/); const frag=parts[parts.length-1]; const first=parts.length<=1;
+      let pool;
+      if(first){ pool=Object.keys(CMD).filter(k=>typeof CMD[k]==='function'); }
+      else { pool=FILES; }
+      if(!frag){ // nothing typed for this token: show a few options
+        if(first){ const list=pool.slice().sort().slice(0,30); this.print(promptLead()+'<span class="in">'+esc(val)+'</span>'); this.print(list.join('   '),'dim'); this.showPrompt(); inp.value=val; setCaretEnd(inp);} 
+        return;
+      }
+      const hits=pool.filter(x=>x.toLowerCase().startsWith(frag.toLowerCase())).sort();
+      if(!hits.length) return;
+      if(hits.length===1){
+        parts[parts.length-1]=hits[0];
+        inp.value=parts.join(' ')+(first?' ':'');
+        setCaretEnd(inp);
+        return;
+      }
+      // common prefix
+      let cp=hits[0];
+      for(const h of hits){ while(!h.toLowerCase().startsWith(cp.toLowerCase())) cp=cp.slice(0,-1); }
+      if(cp.length>frag.length){ parts[parts.length-1]=cp; inp.value=parts.join(' '); setCaretEnd(inp); }
+      // list candidates (bash-style)
+      this.print(promptLead()+'<span class="in">'+esc(val)+'</span>');
+      this.print(hits.slice(0,40).join('   '),'dim');
+      this.showPrompt(); inp.value=parts.join(' '); setCaretEnd(inp);
+    };
+  }
+
+  /* =====================================================================
+     GLOBAL APPLICATIONS SEARCH  (finds every GUI tool AND CLI command)
+     ===================================================================== */
+  if(typeof Kickoff!=='undefined'){
+    const CLI_META={
+      nmap:'port & service scanner', netdiscover:'host discovery on the subnet', 'arp-scan':'ARP host discovery',
+      whatweb:'web tech fingerprint', nikto:'web server vuln scanner', gobuster:'directory brute-force', dirb:'directory brute-force',
+      wpscan:'WordPress scanner', sqlmap:'SQL injection', curl:'fetch a URL', searchsploit:'exploit-db search',
+      hydra:'login brute-force', john:'password cracker', hashcat:'GPU hash cracker', crunch:'wordlist generator',
+      'airmon-ng':'enable monitor mode', 'airodump-ng':'capture Wi-Fi + handshakes', 'aireplay-ng':'deauth / packet injection',
+      'aircrack-ng':'crack WEP/WPA handshakes', wifite:'automated Wi-Fi attacks', wash:'find WPS access points', reaver:'WPS PIN attack', iwlist:'scan Wi-Fi cells',
+      msfconsole:'Metasploit framework', bluetoothctl:'Bluetooth control', l2ping:'L2CAP echo flood (silence audio)', hcitool:'Bluetooth device scan', rfkill:'radio block list',
+      theHarvester:'OSINT emails & subdomains', theharvester:'OSINT emails & subdomains', spiderfoot:'OSINT scanner (GUI)', gophish:'phishing campaign dashboard', zphisher:'clone a login & capture creds',
+      ping:'test if a host is up', traceroute:'trace the route to a host', tracert:'trace the route to a host', dig:'DNS lookup', nslookup:'DNS lookup', host:'DNS lookup',
+      netstat:'open connections', ss:'open sockets', route:'routing table', arp:'ARP cache', wget:'download a file', ssh:'remote shell', ifconfig:'network interfaces', iwconfig:'wireless config', ip:'ip addr/route/link',
+      ps:'process list', top:'live process monitor', df:'disk free', free:'memory usage', uname:'kernel info', neofetch:'system info', find:'search files', grep:'search text', cat:'print a file', ls:'list files', history:'command history', help:'list all commands', clear:'clear the screen'
+    };
+    const GUI=[
+      ['__terminal','Terminal Emulator','gui','open a shell'],
+      ['root-terminal','Root Terminal','gui','shell as root'],
+      ['browser','Web Browser (OSINT)','gui','Operation Glasshouse recon'],
+      ['__files','File Manager','gui','browse the filesystem'],
+      ['__texteditor','Text Editor','gui','mousepad'],
+      ['__ai','AI Mentor','gui','ask any question'],
+      ['__victim','Victim Screen','gui','watch attacks land'],
+      ['__settings','System Settings','gui','theme & progress'],
+      ['wireshark','Wireshark','gui','packet analyzer'],
+      ['fern-wifi-cracker','Fern WiFi Cracker','gui','crack Wi-Fi with buttons'],
+      ['wifipumpkin3','WiFi Pumpkin','gui','evil-twin rogue AP'],
+      ['__bluetooth','Bluetooth Manager','gui','scan & disrupt Bluetooth'],
+      ['spiderfoot','SpiderFoot','gui','OSINT scanner'],
+      ['gophish','Gophish','gui','phishing dashboard'],
+      ['phish','Phishing login page','gui','the fake site zphisher serves'],
+      ['__social','Breached account','gui','the target’s social profile'],
+      ['__report','Engagement report','gui','write up the findings'],
+    ];
+    const SPECIAL=[
+      ['__campaign','Objectives — Operation Glass Cage','mission','the gamified campaign'],
+      ['__tutorial','Guided Training','mission','story walkthrough, step by step'],
+      ['m_neighbour','Mission: Quiet the Neighbour','mission','silence a noisy BT speaker'],
+      ['m_wifi','Mission: Crack the Wi-Fi','mission','capture & crack WPA'],
+    ];
+    function buildIndex(){
+      const seen={}, out=[];
+      const push=(id,label,kind,hint)=>{ if(seen[id])return; seen[id]=1; out.push({id,label,kind,hint:hint||''}); };
+      SPECIAL.forEach(g=>push(g[0],g[1],g[2],g[3]));
+      GUI.forEach(g=>push(g[0],g[1],g[2],g[3]));
+      // every CLI command that exists
+      try{ Object.keys(CMD).filter(k=>typeof CMD[k]==='function').sort().forEach(k=>push(k,k,'cmd',CLI_META[k]||'command')); }catch(e){}
+      return out;
+    }
+    let INDEX=null;
+    Kickoff.searchIndex=function(){ if(!INDEX)INDEX=buildIndex(); return INDEX; };
+
+    Kickoff.renderList=function(){
+      const g=$('#kfList'); if(!g)return;
+      if(this.q){
+        const q=this.q;
+        const idx=this.searchIndex();
+        const score=(it)=>{ const l=it.label.toLowerCase(), i=it.id.toLowerCase().replace(/^_+/,''), h=it.hint.toLowerCase();
+          if(l===q||i===q)return 0; if(l.startsWith(q)||i.startsWith(q))return 1; if(l.includes(q)||i.includes(q))return 2; if(h.includes(q))return 3; return 9; };
+        const items=idx.map(it=>({it,s:score(it)})).filter(x=>x.s<9)
+          .sort((a,b)=> a.s-b.s || a.it.label.localeCompare(b.it.label)).map(x=>x.it);
+        if(!items.length){ g.innerHTML='<div class="kf-empty">No tool or command matches “'+esc(this.q)+'”.</div>'; return; }
+        g.innerHTML=items.slice(0,40).map(it=>{
+          const kindLbl=it.kind==='cmd'?'CLI':(it.kind==='mission'?'MISSION':'APP');
+          const meta=it.kind==='cmd'?('$ '+it.id):(it.hint||'');
+          return '<div class="kf-app'+(it.kind==='mission'?' mission':'')+'" data-open="'+esc(it.id)+'" title="'+esc(it.hint)+'">'
+            +'<span class="aicon">'+iconFor(it.id)+'</span>'
+            +'<span class="aname">'+esc(it.label)+'</span>'
+            +'<span class="akind">'+kindLbl+'</span>'
+            +'<span class="ameta">'+esc(meta)+'</span></div>';
+        }).join('');
+        $$('#kfList .kf-app').forEach(el=>el.onclick=()=>{ closeMenu(); openTool(el.dataset.open); });
+        return;
+      }
+      // non-search: original category behaviour
+      let items=[];
+      if(this.tab==='fav') items=KFFAV;
+      else if(this.tab==='recent') items=RECENT.map(id=>[id,labelFor(id)]);
+      else if(this.tab==='all') items=this.allApps();
+      else items=KFAPPS[this.tab]||[];
+      if(!items.length){ g.innerHTML='<div class="kf-empty">'+(this.tab==='recent'?'Nothing here yet — open an application.':'No applications in this category.')+'</div>'; return; }
+      g.innerHTML=items.map(a=>'<div class="kf-app'+((String(a[0]).indexOf('m_')===0||a[0]==='__tutorial'||a[0]==='__campaign')?' mission':'')+'" data-open="'+a[0]+'"><span class="aicon">'+iconFor(a[0])+'</span><span class="aname">'+esc(a[1])+'</span></div>').join('');
+      $$('#kfList .kf-app').forEach(el=>el.onclick=()=>{ closeMenu(); openTool(el.dataset.open); });
+    };
+
+    // don't wipe an active query when the mouse drifts over the sidebar
+    Kickoff.renderSide=function(){
+      const c=$('#kfSide'); if(!c)return;
+      c.innerHTML=KFTABS.map(t=>t.sep?'<div class="kf-sep"></div>':'<div class="kf-tab'+(t.id===this.tab?' on':'')+'" data-t="'+esc(t.id)+'"><span class="ti">'+t.icon+'</span>'+esc(t.name)+'</div>').join('');
+      $$('#kfSide .kf-tab').forEach(el=>{ const id=el.dataset.t;
+        el.onmouseenter=()=>{ if(!this.q) this.setTab(id); };
+        el.onclick=()=>{ const s=$('#kfSearch'); if(s)s.value=''; this.q=''; this.setTab(id); };
+      });
+    };
+
+    // make Instagram/story tools discoverable in the menu lists too
+    if(typeof KFAPPS!=='undefined'){
+      KFAPPS['usual']=[['__campaign','Objectives (Operation Glass Cage)']].concat(KFAPPS['usual']||[]);
+    }
+  }
+
+  /* =====================================================================
+     add Objectives + story tools to the desktop & app menu
+     ===================================================================== */
+  try{
+    if(typeof DESKICONS!=='undefined'){
+      DESKICONS.unshift(['__campaign','Objectives',ICON.mission,'Operation Glass Cage — the gamified campaign']);
+    }
+  }catch(e){}
+
+  console.log('%cKali Lab Simulator — v2 upgrade loaded','color:#26c6da');
 })();
 
 </script>
